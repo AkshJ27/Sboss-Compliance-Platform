@@ -6,3 +6,174 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum Role {
+  ORG_ADMIN
+  MEMBER
+  VIEWER
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users          User[]
+  entities       Entity[]
+  verticals      Vertical[]
+  departments    Department[]
+  locationTypes  LocationType[]
+  locations      Location[]
+  financialYears FinancialYear[]
+  auditLogs      AuditLog[]
+}
+
+model User {
+  id               String    @id @default(uuid())
+  orgId            String
+  email            String    @unique
+  name             String
+  passwordHash     String
+  role             Role      @default(MEMBER)
+  isActive         Boolean   @default(true)
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([orgId])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  ip        String?
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Entity {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  code      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  locations Location[]
+
+  @@unique([orgId, name])
+  @@unique([orgId, code])
+  @@index([orgId])
+}
+
+model Vertical {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model LocationType {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  locations Location[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model Location {
+  id             String   @id @default(uuid())
+  orgId          String
+  entityId       String
+  locationTypeId String?
+  name           String
+  state          String
+  city           String?
+  address        String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  org          Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  entity       Entity        @relation(fields: [entityId], references: [id])
+  locationType LocationType? @relation(fields: [locationTypeId], references: [id])
+
+  @@unique([entityId, name])
+  @@index([orgId, entityId])
+  @@index([orgId, state])
+}
+
+model FinancialYear {
+  id        String   @id @default(uuid())
+  orgId     String
+  label     String
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  isCurrent Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, label])
+  @@index([orgId, startDate])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  orgId      String
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, entityType, entityId])
+  @@index([orgId, createdAt])
+}

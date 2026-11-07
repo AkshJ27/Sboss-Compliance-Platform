@@ -1,20 +1,26 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import { prisma } from './lib/prisma';
+import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 import { notFound } from './middleware/not-found';
+import { authRouter } from './modules/auth/auth.routes';
+import { usersRouter } from './modules/users/users.routes';
+import { mastersRouter } from './modules/masters/masters.routes';
 
 export const app = express();
 
 app.disable('x-powered-by');
-app.set('trust proxy', 1); // one proxy (the AWS load balancer) sits in front of the app
+app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '100kb' }));
+app.use(cookieParser());
 
 app.use(
     rateLimit({
@@ -25,18 +31,18 @@ app.use(
     }),
 );
 
-// For the AWS load balancer: no database call
 app.get('/health', (_req, res) => {
     res.json({ ok: true });
 });
 
-// For you, while developing: checks the database connection
 app.get('/health/db', async (_req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ ok: true, db: 'connected' });
 });
 
-// Feature routes get mounted here from step 2 onward
+app.use('/api/auth', authRouter);
+app.use('/api/users', requireAuth, usersRouter);
+app.use('/api/masters', requireAuth, mastersRouter);
 
 app.use(notFound);
 app.use(errorHandler);
