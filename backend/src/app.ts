@@ -13,6 +13,7 @@ import { usersRouter } from './modules/users/users.routes';
 import { mastersRouter } from './modules/masters/masters.routes';
 import { libraryRouter } from './modules/library/library.routes';
 import { complianceRouter } from './modules/compliance/compliance.routes';
+import { documentsRouter, documentFilesRouter } from './modules/documents/documents.routes';
 
 export const app = express();
 
@@ -47,6 +48,8 @@ app.use('/api/users', requireAuth, usersRouter);
 app.use('/api/masters', requireAuth, mastersRouter);
 app.use('/api/library', requireAuth, libraryRouter);
 app.use('/api/compliance', requireAuth, complianceRouter);
+app.use('/api/documents/files', documentFilesRouter);
+app.use('/api/documents', requireAuth, documentsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

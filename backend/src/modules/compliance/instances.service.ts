@@ -200,6 +200,7 @@ const instanceInclude = {
     location: { select: { id: true, name: true, state: true } },
     department: { select: { id: true, name: true } },
     vertical: { select: { id: true, name: true } },
+    _count: { select: { documents: { where: { deletedAt: null } } } },
     owner: person,
     manager: person,
     approver: person,

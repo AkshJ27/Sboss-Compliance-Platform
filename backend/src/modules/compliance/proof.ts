@@ -1,12 +1,26 @@
 import { Prisma } from '@prisma/client';
+import { parseDateOnly, todayInIndia } from '../../lib/dates';
 
-// Step 7 replaces this with a real count of the documents attached to the item.
-// Until then it returns 0, so an item that needs proof cannot be submitted as
-// Applicable. That is the safe way to fail.
+// How many valid proof documents are attached to an item.
+// The first statement locks the item's row, so no document can be added or removed
+// while a submission is being checked, and the count is read after the lock is taken.
 export async function countProof(
-    _tx: Prisma.TransactionClient,
-    _orgId: string,
-    _instanceId: string,
+    tx: Prisma.TransactionClient,
+    orgId: string,
+    instanceId: string,
 ): Promise<number> {
-    return 0;
+    await tx.complianceInstance.updateMany({
+        where: { id: instanceId, orgId, status: { in: ['DUE', 'RETURNED'] } },
+        data: { updatedAt: new Date() },
+    });
+
+    const today = parseDateOnly(todayInIndia());
+    return tx.document.count({
+        where: {
+            orgId,
+            instanceId,
+            deletedAt: null,
+            OR: [{ expiresAt: null }, { expiresAt: { gte: today } }],
+        },
+    });
 }
