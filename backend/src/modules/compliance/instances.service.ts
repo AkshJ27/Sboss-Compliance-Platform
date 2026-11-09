@@ -5,7 +5,7 @@ import { recordAudit } from '../../lib/audit';
 import { chunks } from '../../lib/chunks';
 import { parseDateOnly, toDateOnly, todayInIndia } from '../../lib/dates';
 import type { AuthUser } from '../../middleware/auth';
-import type { GenerateInput, InstanceListQuery } from './compliance.schema';
+import type { GenerateInput } from './compliance.schema';
 import { occurrences } from './schedule.engine';
 import { dashboardStatus } from './status';
 
@@ -174,7 +174,7 @@ export async function generate(actor: AuthUser, input: GenerateInput, dryRun: bo
 
 const person = { select: { id: true, name: true } } as const;
 
-const instanceInclude = {
+export const instanceInclude = {
     compliance: {
         select: {
             id: true,
@@ -212,72 +212,9 @@ export function visibleTo(actor: AuthUser): Prisma.ComplianceInstanceWhereInput 
     return { OR: [{ ownerId: actor.id }, { managerId: actor.id }, { approverId: actor.id }] };
 }
 
-function withOverdue<T extends { dueDate: Date; status: InstanceStatus; doneDate: Date | null }>(row: T) {
+export function withOverdue<T extends { dueDate: Date; status: InstanceStatus; doneDate: Date | null }>(row: T) {
     const label = dashboardStatus(row, todayInIndia());
     return { ...row, overdue: label === 'NON_COMPLIANCE', dashboardStatus: label };
-}
-
-export async function listInstances(actor: AuthUser, q: InstanceListQuery) {
-    const and: Prisma.ComplianceInstanceWhereInput[] = [visibleTo(actor)];
-
-    if (q.overdue) {
-        and.push({
-            status: { in: ['DUE', 'RETURNED'] },
-            dueDate: { lt: parseDateOnly(todayInIndia()) },
-        });
-    }
-    if (q.search) {
-        and.push({
-            compliance: {
-                OR: [
-                    { title: { contains: q.search, mode: insensitive } },
-                    { code: { contains: q.search, mode: insensitive } },
-                    { act: { name: { contains: q.search, mode: insensitive } } },
-                ],
-            },
-        });
-    }
-
-    const compliance: Prisma.ComplianceWhereInput = {
-        ...(q.actId ? { actId: q.actId } : {}),
-        ...(q.risk ? { risk: q.risk } : {}),
-        ...(q.frequency ? { frequency: q.frequency } : {}),
-        ...(q.lawCategoryId ? { act: { lawCategoryId: q.lawCategoryId } } : {}),
-    };
-
-    const where: Prisma.ComplianceInstanceWhereInput = {
-        orgId: actor.orgId,
-        ...(q.entityId ? { entityId: q.entityId } : {}),
-        ...(q.locationId ? { locationId: q.locationId } : {}),
-        ...(q.departmentId ? { departmentId: q.departmentId } : {}),
-        ...(q.verticalId ? { verticalId: q.verticalId } : {}),
-        ...(q.ownerId ? { ownerId: q.ownerId } : {}),
-        ...(q.managerId ? { managerId: q.managerId } : {}),
-        ...(q.status ? { status: q.status } : {}),
-        ...(q.state ? { location: { state: q.state } } : {}),
-        ...(q.dueFrom || q.dueTo
-            ? {
-                dueDate: {
-                    ...(q.dueFrom ? { gte: parseDateOnly(q.dueFrom) } : {}),
-                    ...(q.dueTo ? { lte: parseDateOnly(q.dueTo) } : {}),
-                },
-            }
-            : {}),
-        ...(Object.keys(compliance).length ? { compliance } : {}),
-        AND: and,
-    };
-
-    const [total, items] = await prisma.$transaction([
-        prisma.complianceInstance.count({ where }),
-        prisma.complianceInstance.findMany({
-            where,
-            include: instanceInclude,
-            orderBy: [{ dueDate: q.order }, { id: 'asc' }],
-            skip: (q.page - 1) * q.limit,
-            take: q.limit,
-        }),
-    ]);
-    return { items: items.map(withOverdue), total, page: q.page, limit: q.limit };
 }
 
 export async function getInstance(actor: AuthUser, id: string) {

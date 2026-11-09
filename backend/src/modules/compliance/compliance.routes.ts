@@ -3,6 +3,9 @@ import { getUser, requireRole } from '../../middleware/auth';
 import * as s from './compliance.schema';
 import * as schedules from './schedules.service';
 import * as instances from './instances.service';
+import { instanceListSchema } from './filters';
+import { listInstances } from './instances.query';
+import { dashboardRouter } from './dashboard.routes';
 import { workflowRouter } from './workflow.routes';
 
 export const complianceRouter = Router();
@@ -28,6 +31,9 @@ complianceRouter.patch('/schedules/:id', admin, async (req, res) => {
     res.json(await schedules.updateSchedule(getUser(req), id, input));
 });
 
+// Dashboard
+complianceRouter.use('/dashboard', dashboardRouter);
+
 // Instances
 complianceRouter.post('/instances/generate', admin, async (req, res) => {
     const { dryRun } = s.dryRunQuerySchema.parse(req.query);
@@ -37,8 +43,7 @@ complianceRouter.post('/instances/generate', admin, async (req, res) => {
 });
 
 complianceRouter.get('/instances', async (req, res) => {
-    const query = s.instanceListQuerySchema.parse(req.query);
-    res.json(await instances.listInstances(getUser(req), query));
+    res.json(await listInstances(getUser(req), instanceListSchema.parse(req.query)));
 });
 
 complianceRouter.get('/instances/:id', async (req, res) => {

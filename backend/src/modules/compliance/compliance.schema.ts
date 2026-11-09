@@ -106,26 +106,3 @@ export const generateSchema = z
         { message: 'The range can be at most 2 years', path: ['to'] },
     );
 export type GenerateInput = z.infer<typeof generateSchema>;
-
-// Reading instances
-export const instanceListQuerySchema = z.object({
-    entityId: uuid.optional(),
-    locationId: uuid.optional(),
-    departmentId: uuid.optional(),
-    verticalId: uuid.optional(),
-    lawCategoryId: uuid.optional(),
-    actId: uuid.optional(),
-    state: z.enum(INDIAN_STATES).optional(), // the location's state
-    ownerId: uuid.optional(),
-    managerId: uuid.optional(),
-    status: z.enum(INSTANCE_STATUSES).optional(),
-    risk: z.enum(RISKS).optional(),
-    frequency: z.enum(FREQUENCIES).optional(),
-    dueFrom: dateOnlyField.optional(),
-    dueTo: dateOnlyField.optional(),
-    overdue: z.enum(['true']).optional(),
-    search: z.string().trim().max(100).optional(),
-    order: z.enum(['asc', 'desc']).default('asc'),
-    ...paging,
-});
-export type InstanceListQuery = z.infer<typeof instanceListQuerySchema>;
