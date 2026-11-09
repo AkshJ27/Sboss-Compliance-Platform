@@ -11,7 +11,7 @@ const MAX_ACTIVATE = 5000;
 const insensitive = Prisma.QueryMode.insensitive;
 
 // Owner, manager and approver must be active, non-viewer users of the same company
-async function assertAssignees(
+export async function assertAssignees(
     db: Prisma.TransactionClient,
     orgId: string,
     ids: (string | null | undefined)[],

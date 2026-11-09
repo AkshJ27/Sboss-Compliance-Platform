@@ -3,6 +3,7 @@ import { getUser, requireRole } from '../../middleware/auth';
 import * as s from './compliance.schema';
 import * as schedules from './schedules.service';
 import * as instances from './instances.service';
+import { workflowRouter } from './workflow.routes';
 
 export const complianceRouter = Router();
 
@@ -44,3 +45,5 @@ complianceRouter.get('/instances/:id', async (req, res) => {
     const { id } = s.idParamSchema.parse(req.params);
     res.json(await instances.getInstance(getUser(req), id));
 });
+
+complianceRouter.use('/instances', workflowRouter);

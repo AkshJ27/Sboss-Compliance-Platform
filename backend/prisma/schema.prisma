@@ -29,6 +29,7 @@ model Organization {
   auditLogs      AuditLog[]
   schedules ComplianceSchedule[]
   instances ComplianceInstance[]
+   instanceEvents InstanceEvent[]
 
 }
 
@@ -49,7 +50,7 @@ model User {
 
   org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
-
+ instanceEvents InstanceEvent[]
   @@index([orgId])
   
   ownedSchedules    ComplianceSchedule[] @relation("ScheduleOwner")
@@ -422,6 +423,25 @@ model ComplianceInstance {
   owner      User               @relation("InstanceOwner", fields: [ownerId], references: [id])
   manager    User               @relation("InstanceManager", fields: [managerId], references: [id])
   approver   User?              @relation("InstanceApprover", fields: [approverId], references: [id])
+  submissionType     SubmissionType?
+  doneDate           DateTime?       @db.Date
+  refNo              String?
+  challanNo          String?
+  actualImprisonment Boolean         @default(false)
+  penaltyPaid        Decimal?        @db.Decimal(12, 2)
+  payableAmount      Decimal?        @db.Decimal(12, 2)
+  amountPaid         Decimal?        @db.Decimal(12, 2)
+  remarks            String?
+  returnRemarks      String?
+  isWip              Boolean         @default(false)
+  submittedAt        DateTime?
+  submittedById      String?
+  managerActionAt    DateTime?
+  managerActionById  String?
+  closedAt           DateTime?
+  closedById         String?
+
+  events InstanceEvent[]
 
   @@unique([scheduleId, periodStart])
   @@index([orgId, dueDate])
@@ -430,4 +450,38 @@ model ComplianceInstance {
   @@index([ownerId, status])
   @@index([managerId, status])
   @@index([complianceId])
+}
+
+enum SubmissionType {
+  APPLICABLE
+  NOT_APPLICABLE
+}
+
+enum InstanceAction {
+  DRAFT_SAVED
+  SUBMITTED
+  MANAGER_APPROVED
+  APPROVED
+  RETURNED
+  REASSIGNED
+}
+
+model InstanceEvent {
+  id         String          @id @default(uuid())
+  orgId      String
+  instanceId String
+  actorId    String
+  action     InstanceAction
+  fromStatus InstanceStatus?
+  toStatus   InstanceStatus?
+  remarks    String?
+  data       Json?
+  createdAt  DateTime        @default(now())
+
+  org      Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  instance ComplianceInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  actor    User               @relation(fields: [actorId], references: [id])
+
+  @@index([instanceId, createdAt])
+  @@index([orgId, createdAt])
 }

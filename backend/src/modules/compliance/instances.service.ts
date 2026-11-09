@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { InstanceStatus, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { HttpError } from '../../lib/errors';
 import { recordAudit } from '../../lib/audit';
@@ -7,6 +7,7 @@ import { parseDateOnly, toDateOnly, todayInIndia } from '../../lib/dates';
 import type { AuthUser } from '../../middleware/auth';
 import type { GenerateInput, InstanceListQuery } from './compliance.schema';
 import { occurrences } from './schedule.engine';
+import { dashboardStatus } from './status';
 
 const MAX_ROWS = 50_000;
 const insensitive = Prisma.QueryMode.insensitive;
@@ -205,14 +206,14 @@ const instanceInclude = {
 } as const;
 
 // Admins and viewers see everything; members see only what they own, manage or approve
-function visibleTo(actor: AuthUser): Prisma.ComplianceInstanceWhereInput {
+export function visibleTo(actor: AuthUser): Prisma.ComplianceInstanceWhereInput {
     if (actor.role !== 'MEMBER') return {};
     return { OR: [{ ownerId: actor.id }, { managerId: actor.id }, { approverId: actor.id }] };
 }
 
-function withOverdue<T extends { dueDate: Date; status: string }>(row: T) {
-    const open = row.status === 'DUE' || row.status === 'RETURNED';
-    return { ...row, overdue: open && toDateOnly(row.dueDate) < todayInIndia() };
+function withOverdue<T extends { dueDate: Date; status: InstanceStatus; doneDate: Date | null }>(row: T) {
+    const label = dashboardStatus(row, todayInIndia());
+    return { ...row, overdue: label === 'NON_COMPLIANCE', dashboardStatus: label };
 }
 
 export async function listInstances(actor: AuthUser, q: InstanceListQuery) {
