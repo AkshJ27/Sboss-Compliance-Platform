@@ -14,6 +14,9 @@ import { mastersRouter } from './modules/masters/masters.routes';
 import { libraryRouter } from './modules/library/library.routes';
 import { complianceRouter } from './modules/compliance/compliance.routes';
 import { documentsRouter, documentFilesRouter } from './modules/documents/documents.routes';
+import { notificationsRouter } from './modules/notifications/notifications.routes';
+import { auditRouter } from './modules/audit/audit.routes';
+import { reportsRouter } from './modules/reports/reports.routes';
 
 export const app = express();
 
@@ -50,6 +53,9 @@ app.use('/api/library', requireAuth, libraryRouter);
 app.use('/api/compliance', requireAuth, complianceRouter);
 app.use('/api/documents/files', documentFilesRouter);
 app.use('/api/documents', requireAuth, documentsRouter);
+app.use('/api/notifications', requireAuth, notificationsRouter);
+app.use('/api/audit', requireAuth, auditRouter);
+app.use('/api/reports', requireAuth, reportsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

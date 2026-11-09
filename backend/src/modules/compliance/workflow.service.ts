@@ -8,6 +8,7 @@ import { getInstance, visibleTo } from './instances.service';
 import { assertAssignees } from './schedules.service';
 import { countProof } from './proof';
 import type { AssigneesInput, DraftInput, SubmitInput } from './workflow.schema';
+import { notifyWorkflow } from '../notifications/notify';
 
 type Tx = Prisma.TransactionClient;
 type Update = Prisma.ComplianceInstanceUncheckedUpdateManyInput;
@@ -18,7 +19,7 @@ const blank = (s: string | undefined) => (s ? s : null);
 async function load(tx: Tx, actor: AuthUser, id: string) {
     const inst = await tx.complianceInstance.findFirst({
         where: { id, orgId: actor.orgId },
-        include: { compliance: { select: { attachment: true } } },
+        include: { compliance: { select: { attachment: true, code: true, title: true } } },
     });
     if (!inst) throw new HttpError(404, 'Compliance item not found');
 
@@ -65,6 +66,24 @@ async function change(
         from: inst.status,
         to,
         ...(event.remarks ? { remarks: event.remarks } : {}),
+    });
+
+    await notifyWorkflow(tx, {
+        orgId: actor.orgId,
+        actorId: actor.id,
+        action,
+        toStatus: to,
+        instanceId: inst.id,
+        code: inst.compliance.code,
+        title: inst.compliance.title,
+        dueDate: inst.dueDate,
+        before: { ownerId: inst.ownerId, managerId: inst.managerId, approverId: inst.approverId },
+        after: {
+            ownerId: typeof data.ownerId === 'string' ? data.ownerId : inst.ownerId,
+            managerId: typeof data.managerId === 'string' ? data.managerId : inst.managerId,
+            approverId: data.approverId === undefined ? inst.approverId : (data.approverId as string | null),
+        },
+        remarks: event.remarks,
     });
 }
 

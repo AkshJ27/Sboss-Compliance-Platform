@@ -15,6 +15,15 @@ const schema = z
         LOCAL_STORAGE_DIR: z.string().min(1).default('./storage'),
         S3_BUCKET: z.string().min(1).optional(),
         AWS_REGION: z.string().min(1).optional(),
+        EMAIL_DRIVER: z.enum(['file', 'ses', 'off']).default('file'),
+        EMAIL_FROM: z.string().min(3).optional(),
+        OUTBOX_DIR: z.string().min(1).default('./outbox'),
+        APP_URL: z.string().url().default('http://localhost:5173'),
+        RUN_JOBS: z
+            .enum(['true', 'false'])
+            .default('true')
+            .transform((v) => v === 'true'),
+        DIGEST_HOUR: z.coerce.number().int().min(0).max(23).default(8),
     })
     .superRefine((v, ctx) => {
         if (v.STORAGE_DRIVER === 's3') {
@@ -30,6 +39,21 @@ const schema = z
                 code: 'custom',
                 path: ['STORAGE_DRIVER'],
                 message: 'Use s3 in production: files on local disk are lost when the server is replaced',
+            });
+        }
+        if (v.EMAIL_DRIVER === 'ses') {
+            if (!v.EMAIL_FROM) {
+                ctx.addIssue({ code: 'custom', path: ['EMAIL_FROM'], message: 'Required when EMAIL_DRIVER is ses' });
+            }
+            if (!v.AWS_REGION) {
+                ctx.addIssue({ code: 'custom', path: ['AWS_REGION'], message: 'Required when EMAIL_DRIVER is ses' });
+            }
+        }
+        if (v.NODE_ENV === 'production' && v.EMAIL_DRIVER === 'file') {
+            ctx.addIssue({
+                code: 'custom',
+                path: ['EMAIL_DRIVER'],
+                message: 'Use ses (or off) in production: emails written to a folder are never delivered',
             });
         }
     });

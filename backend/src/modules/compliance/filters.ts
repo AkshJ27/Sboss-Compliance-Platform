@@ -31,7 +31,7 @@ function toList(v: unknown): unknown {
     return parts.length ? [...new Set(parts)] : undefined;
 }
 
-const list = <T extends z.ZodType>(item: T) =>
+export const list = <T extends z.ZodType>(item: T) =>
     z.preprocess(toList, z.array(item).max(50).optional());
 
 // The sixteen filters of the filter panel

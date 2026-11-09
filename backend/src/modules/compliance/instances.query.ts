@@ -8,7 +8,10 @@ import { instanceInclude, withOverdue } from './instances.service';
 
 const insensitive = Prisma.QueryMode.insensitive;
 
-export async function listInstances(actor: AuthUser, q: InstanceListQuery) {
+export type ListFilters = Omit<InstanceListQuery, 'order' | 'page' | 'limit'>;
+
+// One definition of "which items match these filters", used by the list and by exports
+export function buildListWhere(actor: AuthUser, q: ListFilters): Prisma.ComplianceInstanceWhereInput {
     const today = todayInIndia();
     const and: Prisma.ComplianceInstanceWhereInput[] = [
         buildInstanceWhere(actor, q),
@@ -29,8 +32,11 @@ export async function listInstances(actor: AuthUser, q: InstanceListQuery) {
             },
         });
     }
+    return { AND: and };
+}
 
-    const where: Prisma.ComplianceInstanceWhereInput = { AND: and };
+export async function listInstances(actor: AuthUser, q: InstanceListQuery) {
+    const where = buildListWhere(actor, q);
     const [total, items] = await prisma.$transaction([
         prisma.complianceInstance.count({ where }),
         prisma.complianceInstance.findMany({

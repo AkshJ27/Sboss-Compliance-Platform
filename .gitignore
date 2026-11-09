@@ -3,3 +3,8 @@ dist/
 .env
 *.log
 .DS_Store
+storage/
+backend/samples/*.pdf
+backend/samples/*.exe
+backend/samples/*.txt
+outbox/

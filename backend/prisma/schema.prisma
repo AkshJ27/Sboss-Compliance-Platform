@@ -31,6 +31,7 @@ model Organization {
   instances ComplianceInstance[]
   instanceEvents InstanceEvent[]
   documents Document[]
+  notifications Notification[]
 
 }
 
@@ -53,6 +54,8 @@ model User {
   refreshTokens RefreshToken[]
  instanceEvents InstanceEvent[]
   @@index([orgId])
+  emailAlerts   Boolean        @default(true)
+  notifications Notification[]
   
   ownedSchedules    ComplianceSchedule[] @relation("ScheduleOwner")
   managedSchedules  ComplianceSchedule[] @relation("ScheduleManager")
@@ -522,4 +525,64 @@ model Document {
   @@index([instanceId])
   @@index([orgId, createdAt])
   @@index([orgId, expiresAt])
+}
+
+enum NotificationType {
+  REVIEW_REQUESTED
+  RETURNED
+  CLOSED
+  ASSIGNED
+  DAILY_DIGEST
+}
+
+enum EmailStatus {
+  NONE
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum JobStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model Notification {
+  id                 String           @id @default(uuid())
+  orgId              String
+  userId             String
+  type               NotificationType
+  title              String
+  body               String
+  instanceId         String?
+  dedupeKey          String?
+  readAt             DateTime?
+  emailStatus        EmailStatus      @default(NONE)
+  emailAttempts      Int              @default(0)
+  emailLastAttemptAt DateTime?
+  emailedAt          DateTime?
+  createdAt          DateTime         @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt])
+  @@index([emailStatus, createdAt])
+  @@index([createdAt])
+}
+
+model JobRun {
+  id         String    @id @default(uuid())
+  name       String
+  runKey     String
+  status     JobStatus @default(RUNNING)
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  summary    Json?
+  error      String?
+
+  @@unique([name, runKey])
 }
