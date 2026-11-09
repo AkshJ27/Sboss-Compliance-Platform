@@ -27,6 +27,9 @@ model Organization {
   locations      Location[]
   financialYears FinancialYear[]
   auditLogs      AuditLog[]
+  schedules ComplianceSchedule[]
+  instances ComplianceInstance[]
+
 }
 
 model User {
@@ -48,6 +51,13 @@ model User {
   refreshTokens RefreshToken[]
 
   @@index([orgId])
+  
+  ownedSchedules    ComplianceSchedule[] @relation("ScheduleOwner")
+  managedSchedules  ComplianceSchedule[] @relation("ScheduleManager")
+  approvedSchedules ComplianceSchedule[] @relation("ScheduleApprover")
+  ownedInstances    ComplianceInstance[] @relation("InstanceOwner")
+  managedInstances  ComplianceInstance[] @relation("InstanceManager")
+  approvedInstances ComplianceInstance[] @relation("InstanceApprover")
 }
 
 model RefreshToken {
@@ -73,6 +83,8 @@ model Entity {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  schedules ComplianceSchedule[]
+  instances ComplianceInstance[]
 
   org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   locations Location[]
@@ -89,6 +101,8 @@ model Vertical {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  schedules ComplianceSchedule[]
+  instances ComplianceInstance[]
 
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -103,6 +117,8 @@ model Department {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  schedules ComplianceSchedule[]
+  instances ComplianceInstance[]
 
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -137,6 +153,8 @@ model Location {
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  schedules ComplianceSchedule[]
+  instances ComplianceInstance[]
 
   org          Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   entity       Entity        @relation(fields: [entityId], references: [id])
@@ -300,6 +318,8 @@ model Compliance {
   version           Int            @default(1)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  schedules ComplianceSchedule[]
+  instances ComplianceInstance[]
 
   act       Act                  @relation(fields: [actId], references: [id])
   rule      Rule?                @relation(fields: [ruleId], references: [id])
@@ -325,5 +345,89 @@ model ComplianceRevision {
   compliance Compliance @relation(fields: [complianceId], references: [id], onDelete: Cascade)
 
   @@unique([complianceId, version])
+  @@index([complianceId])
+}
+
+enum InstanceStatus {
+  DUE
+  SUBMITTED
+  MANAGER_APPROVED
+  CLOSED
+  RETURNED
+  NOT_APPLICABLE
+}
+
+model ComplianceSchedule {
+  id           String   @id @default(uuid())
+  orgId        String
+  complianceId String
+  entityId     String
+  locationId   String
+  departmentId String?
+  verticalId   String?
+  ownerId      String
+  managerId    String
+  approverId   String?
+  startDate    DateTime @db.Date
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  compliance Compliance   @relation(fields: [complianceId], references: [id])
+  entity     Entity       @relation(fields: [entityId], references: [id])
+  location   Location     @relation(fields: [locationId], references: [id])
+  department Department?  @relation(fields: [departmentId], references: [id])
+  vertical   Vertical?    @relation(fields: [verticalId], references: [id])
+  owner      User         @relation("ScheduleOwner", fields: [ownerId], references: [id])
+  manager    User         @relation("ScheduleManager", fields: [managerId], references: [id])
+  approver   User?        @relation("ScheduleApprover", fields: [approverId], references: [id])
+  instances  ComplianceInstance[]
+
+  @@unique([locationId, complianceId])
+  @@index([orgId, isActive])
+  @@index([orgId, entityId])
+  @@index([ownerId])
+  @@index([managerId])
+  @@index([complianceId])
+}
+
+model ComplianceInstance {
+  id               String         @id @default(uuid())
+  orgId            String
+  scheduleId       String
+  complianceId     String
+  entityId         String
+  locationId       String
+  departmentId     String?
+  verticalId       String?
+  ownerId          String
+  managerId        String
+  approverId       String?
+  requiresApprover Boolean        @default(false)
+  periodStart      DateTime       @db.Date
+  periodEnd        DateTime       @db.Date
+  dueDate          DateTime       @db.Date
+  status           InstanceStatus @default(DUE)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  org        Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  schedule   ComplianceSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  compliance Compliance         @relation(fields: [complianceId], references: [id])
+  entity     Entity             @relation(fields: [entityId], references: [id])
+  location   Location           @relation(fields: [locationId], references: [id])
+  department Department?        @relation(fields: [departmentId], references: [id])
+  vertical   Vertical?          @relation(fields: [verticalId], references: [id])
+  owner      User               @relation("InstanceOwner", fields: [ownerId], references: [id])
+  manager    User               @relation("InstanceManager", fields: [managerId], references: [id])
+  approver   User?              @relation("InstanceApprover", fields: [approverId], references: [id])
+
+  @@unique([scheduleId, periodStart])
+  @@index([orgId, dueDate])
+  @@index([orgId, status, dueDate])
+  @@index([orgId, entityId, locationId])
+  @@index([ownerId, status])
+  @@index([managerId, status])
   @@index([complianceId])
 }

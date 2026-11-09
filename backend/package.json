@@ -7,7 +7,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "make-admin": "tsx scripts/make-platform-admin.ts"
+    "make-admin": "tsx scripts/make-platform-admin.ts",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -37,6 +38,7 @@
     "@types/node": "^26.6.6",
     "prisma": "^6.19.3",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   }
 }
