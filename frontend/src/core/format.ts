@@ -12,3 +12,8 @@ export const titleCase = (s: string) =>
         .split('_')
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ');
+
+export const formatMoney = (value: string | number | null | undefined) =>
+    value === null || value === undefined || value === ''
+        ? ''
+        : new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value));

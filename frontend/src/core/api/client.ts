@@ -54,7 +54,7 @@ export function refreshSession(): Promise<RefreshResult> {
     return refreshing;
 }
 
-type Options = {
+export type Options = {
     method?: string;
     body?: unknown;
     form?: FormData;
@@ -135,3 +135,6 @@ export async function apiDownload(path: string): Promise<void> {
     link.remove();
     URL.revokeObjectURL(url);
 }
+
+// For callers that need the raw response, such as the library import's row-by-row errors
+export const apiRaw = request;

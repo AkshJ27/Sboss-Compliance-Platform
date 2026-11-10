@@ -1,31 +1,61 @@
 import { Suspense } from 'react';
 import { Button, Dropdown, Layout, Menu, Spin, Typography } from 'antd';
+import type { MenuProps } from 'antd';
 import {
+    AuditOutlined,
     BellOutlined,
+    BookOutlined,
+    CalendarOutlined,
     DashboardOutlined,
+    DatabaseOutlined,
+    FileTextOutlined,
     LogoutOutlined,
+    SettingOutlined,
+    TeamOutlined,
     UnorderedListOutlined,
     UserOutlined,
 } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { api } from '../core/api/client';
 import { useAuth } from '../core/auth/AuthContext';
+import { useMe } from '../core/auth/useMe';
 import { NotificationBell } from '../modules/notifications/NotificationBell';
 import { ModuleBoundary } from './ModuleBoundary';
+
+function selectedKey(path: string) {
+    if (path.startsWith('/admin/')) return path.split('/').slice(0, 3).join('/');
+    if (path.startsWith('/records')) return '/records';
+    if (path.startsWith('/documents')) return '/documents';
+    return '/';
+}
 
 export function Shell() {
     const { user, logout } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
+    const me = useMe();
+    const admin = user?.role === 'ORG_ADMIN';
 
-    const me = useQuery({
-        queryKey: ['me'],
-        queryFn: ({ signal }) => api<{ organization: { name: string } }>('/auth/me', { signal }),
-        staleTime: 5 * 60_000,
-    });
-
-    const selected = location.pathname.startsWith('/records') ? '/records' : '/';
+    const items: MenuProps['items'] = [
+        { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
+        { key: '/records', icon: <UnorderedListOutlined />, label: 'Records' },
+        { key: '/documents', icon: <FileTextOutlined />, label: 'Documents' },
+        ...(admin
+            ? [
+                {
+                    key: 'admin',
+                    icon: <SettingOutlined />,
+                    label: 'Setup',
+                    children: [
+                        { key: '/admin/masters', icon: <DatabaseOutlined />, label: 'Masters' },
+                        { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
+                        { key: '/admin/schedules', icon: <CalendarOutlined />, label: 'Schedules' },
+                        { key: '/admin/library', icon: <BookOutlined />, label: 'Law library' },
+                        { key: '/admin/audit', icon: <AuditOutlined />, label: 'Audit log' },
+                    ],
+                },
+            ]
+            : []),
+    ];
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
@@ -34,12 +64,10 @@ export function Shell() {
                 <Menu
                     theme="dark"
                     mode="inline"
-                    selectedKeys={[selected]}
+                    selectedKeys={[selectedKey(location.pathname)]}
+                    defaultOpenKeys={location.pathname.startsWith('/admin/') ? ['admin'] : []}
                     onClick={({ key }) => navigate(key)}
-                    items={[
-                        { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
-                        { key: '/records', icon: <UnorderedListOutlined />, label: 'Records' },
-                    ]}
+                    items={items}
                 />
             </Layout.Sider>
 

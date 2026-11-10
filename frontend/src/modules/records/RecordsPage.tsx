@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import {
     Alert, Badge, Button, DatePicker, Dropdown, Input, Segmented, Space, Table, Tag, Typography, message,
 } from 'antd';
@@ -13,6 +13,9 @@ import { DIMENSIONS, STATUS_META, STATUS_ORDER, dimsToParams, parseDims } from '
 import type { DashStatus, Dims } from '../../core/filters';
 import { formatDate, titleCase } from '../../core/format';
 import { FilterPanel } from '../../shared/FilterPanel';
+
+const RecordDrawer = lazy(() => import('./RecordDrawer'));
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Row = {
     id: string;
@@ -53,6 +56,8 @@ export default function RecordsPage() {
     const page = Math.max(1, Number(sp.get('page')) || 1);
     const requested = Number(sp.get('limit'));
     const limit = PAGE_SIZES.includes(requested) ? requested : 25;
+    const rawOpen = sp.get('open');
+    const openId = rawOpen && UUID.test(rawOpen) ? rawOpen : null;
 
     // The filters sent to the server, without page numbers
     const filterParams = useMemo(() => {
@@ -89,6 +94,16 @@ export default function RecordsPage() {
             }
             next.delete('page');
             setSp(next, { replace: true });
+        },
+        [spKey, setSp],
+    );
+
+    const setOpen = useCallback(
+        (id: string | null) => {
+            const next = new URLSearchParams(spKey);
+            if (id) next.set('open', id);
+            else next.delete('open');
+            setSp(next, { replace: id === null });
         },
         [spKey, setSp],
     );
@@ -259,6 +274,7 @@ export default function RecordsPage() {
                 loading={q.isFetching}
                 scroll={{ x: 1500 }}
                 onChange={onTableChange}
+                onRow={(r) => ({ onClick: () => setOpen(r.id), style: { cursor: 'pointer' } })}
                 pagination={{
                     current: page,
                     pageSize: limit,
@@ -268,6 +284,14 @@ export default function RecordsPage() {
                     showTotal: (total) => `${total} records`,
                 }}
             />
+
+            {openId && (
+                <ModuleBoundary compact label="The record panel" resetKey={openId}>
+                    <Suspense fallback={null}>
+                        <RecordDrawer id={openId} onClose={() => setOpen(null)} onNavigate={(id) => setOpen(id)} />
+                    </Suspense>
+                </ModuleBoundary>
+            )}
         </Space>
     );
 }

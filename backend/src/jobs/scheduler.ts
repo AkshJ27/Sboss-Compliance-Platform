@@ -10,23 +10,36 @@ const RETRY_AFTER_MS = 30 * 60 * 1000;
 
 // Only one server wins the right to run a job for a given day.
 // A run that crashed or failed can be taken over after 30 minutes.
+// Only one server wins the right to run a job for a given day.
+// A run that crashed or failed can be taken over after 30 minutes.
 async function claim(name: string, runKey: string): Promise<boolean> {
-    try {
-        await prisma.jobRun.create({ data: { name, runKey, status: 'RUNNING' } });
-        return true;
-    } catch (e) {
-        if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
-        const takeover = await prisma.jobRun.updateMany({
-            where: {
-                name,
-                runKey,
-                status: { in: ['RUNNING', 'FAILED'] },
-                startedAt: { lt: new Date(Date.now() - RETRY_AFTER_MS) },
-            },
-            data: { status: 'RUNNING', startedAt: new Date(), error: null },
-        });
-        return takeover.count === 1;
+    const existing = await prisma.jobRun.findUnique({
+        where: { name_runKey: { name, runKey } },
+        select: { status: true },
+    });
+
+    if (!existing) {
+        try {
+            await prisma.jobRun.create({ data: { name, runKey, status: 'RUNNING' } });
+            return true;
+        } catch (e) {
+            if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
+            // Another server created it between our check and our insert: fall through
+        }
+    } else if (existing.status === 'SUCCEEDED') {
+        return false; // Already done today. This is the normal case, and it is silent now.
     }
+
+    const takeover = await prisma.jobRun.updateMany({
+        where: {
+            name,
+            runKey,
+            status: { in: ['RUNNING', 'FAILED'] },
+            startedAt: { lt: new Date(Date.now() - RETRY_AFTER_MS) },
+        },
+        data: { status: 'RUNNING', startedAt: new Date(), error: null },
+    });
+    return takeover.count === 1;
 }
 
 async function runOnce(name: string, runKey: string, work: () => Promise<Prisma.InputJsonValue>) {

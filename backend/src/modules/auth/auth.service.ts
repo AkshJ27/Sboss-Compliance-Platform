@@ -144,5 +144,5 @@ export async function getMe(actor: AuthUser) {
         include: { org: { select: { id: true, name: true } } },
     });
     if (!user) throw new HttpError(401, 'Not logged in');
-    return { ...toPublicUser(user), organization: user.org };
+    return { ...toPublicUser(user), isPlatformAdmin: user.isPlatformAdmin, organization: user.org };
 }
