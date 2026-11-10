@@ -8,7 +8,9 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "make-admin": "tsx scripts/make-platform-admin.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:worker": "tsx watch src/worker.ts",
+    "start:worker": "node dist/worker.js"
   },
   "keywords": [],
   "author": "",
