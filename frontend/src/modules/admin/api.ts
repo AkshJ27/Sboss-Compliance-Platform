@@ -39,6 +39,8 @@ export type UserRow = {
     isActive: boolean;
     lastLoginAt: string | null;
     createdAt: string;
+    passwordSetAt: string | null;
+    lockedUntil: string | null;
 };
 
 export const useEntities = (includeInactive: boolean) =>

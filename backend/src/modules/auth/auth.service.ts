@@ -1,6 +1,7 @@
 import { Prisma, User } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { HttpError } from '../../lib/errors';
+import { recordAudit } from '../../lib/audit';
 import { hashPassword, verifyPassword } from '../../lib/password';
 import {
     signAccessToken,
@@ -10,11 +11,11 @@ import {
 } from '../../lib/tokens';
 import type { AuthUser } from '../../middleware/auth';
 
-const MAX_FAILED_LOGINS = 5;
-const LOCK_MINUTES = 15;
+export const MAX_FAILED_LOGINS = 5;
+export const LOCK_MINUTES = 15;
 const GENERIC_LOGIN_ERROR = 'Invalid credentials, or account temporarily locked';
 
-type Meta = { ip?: string; userAgent?: string };
+export type Meta = { ip?: string; userAgent?: string };
 
 export const toPublicUser = (u: User) => ({
     id: u.id,
@@ -24,7 +25,43 @@ export const toPublicUser = (u: User) => ({
     role: u.role,
 });
 
-async function issueSession(user: User, meta: Meta) {
+// Writes an audit record without ever breaking the request it belongs to
+export async function auditUser(
+    user: Pick<User, 'id' | 'orgId' | 'role'>,
+    action: string,
+    meta: Meta = {},
+) {
+    try {
+        await recordAudit(
+            prisma,
+            { id: user.id, orgId: user.orgId, role: user.role },
+            action,
+            'User',
+            user.id,
+            { ip: meta.ip ?? null },
+        );
+    } catch (e) {
+        console.error('[audit] could not record', action, e);
+    }
+}
+
+// Adds one failed attempt, and locks the account when the limit is reached.
+// Returns true when this attempt caused the lock.
+export async function recordFailedAttempt(userId: string): Promise<boolean> {
+    const u = await prisma.user.update({
+        where: { id: userId },
+        data: { failedLoginCount: { increment: 1 } },
+        select: { failedLoginCount: true },
+    });
+    if (u.failedLoginCount < MAX_FAILED_LOGINS) return false;
+    await prisma.user.update({
+        where: { id: userId },
+        data: { failedLoginCount: 0, lockedUntil: new Date(Date.now() + LOCK_MINUTES * 60 * 1000) },
+    });
+    return true;
+}
+
+export async function issueSession(user: User, meta: Meta) {
     const refreshToken = newRefreshToken();
     await prisma.refreshToken.create({
         data: {
@@ -51,7 +88,7 @@ export async function registerOrganization(
     try {
         user = await prisma.$transaction(async (tx) => {
             const org = await tx.organization.create({ data: { name: input.orgName } });
-            return tx.user.create({
+            const created = await tx.user.create({
                 data: {
                     orgId: org.id,
                     email: input.email,
@@ -60,6 +97,15 @@ export async function registerOrganization(
                     role: 'ORG_ADMIN',
                 },
             });
+            await recordAudit(
+                tx,
+                { id: created.id, orgId: org.id, role: 'ORG_ADMIN' },
+                'ORGANIZATION_REGISTERED',
+                'Organization',
+                org.id,
+                { ip: meta.ip ?? null },
+            );
+            return created;
         });
     } catch (e) {
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -79,14 +125,10 @@ export async function login(email: string, password: string, meta: Meta) {
 
     if (!user || locked || !passwordOk || !user.isActive) {
         if (user && !locked && !passwordOk) {
-            const failed = user.failedLoginCount + 1;
-            await prisma.user.update({
-                where: { id: user.id },
-                data:
-                    failed >= MAX_FAILED_LOGINS
-                        ? { failedLoginCount: 0, lockedUntil: new Date(Date.now() + LOCK_MINUTES * 60 * 1000) }
-                        : { failedLoginCount: failed },
-            });
+            const nowLocked = await recordFailedAttempt(user.id);
+            await auditUser(user, nowLocked ? 'ACCOUNT_LOCKED' : 'LOGIN_FAILED', meta);
+        } else if (user && locked) {
+            await auditUser(user, 'LOGIN_BLOCKED', meta);
         }
         throw new HttpError(401, GENERIC_LOGIN_ERROR);
     }
@@ -95,6 +137,7 @@ export async function login(email: string, password: string, meta: Meta) {
         where: { id: user.id },
         data: { failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() },
     });
+    await auditUser(updated, 'LOGIN_SUCCEEDED', meta);
     return issueSession(updated, meta);
 }
 
@@ -113,6 +156,7 @@ export async function refresh(rawToken: string | undefined, meta: Meta) {
             where: { userId: stored.userId, revokedAt: null },
             data: { revokedAt: new Date() },
         });
+        await auditUser(stored.user, 'REFRESH_TOKEN_REUSED', meta);
         throw new HttpError(401, 'Session expired');
     }
 
@@ -132,10 +176,7 @@ export async function refresh(rawToken: string | undefined, meta: Meta) {
 
 export async function logout(rawToken: string | undefined) {
     if (!rawToken) return;
-    await prisma.refreshToken.updateMany({
-        where: { tokenHash: hashToken(rawToken), revokedAt: null },
-        data: { revokedAt: new Date() },
-    });
+    await prisma.refreshToken.deleteMany({ where: { tokenHash: hashToken(rawToken) } });
 }
 
 export async function getMe(actor: AuthUser) {

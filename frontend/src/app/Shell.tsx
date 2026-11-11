@@ -1,5 +1,5 @@
-import { Suspense } from 'react';
-import { Button, Dropdown, Layout, Menu, Spin, Typography } from 'antd';
+import { Suspense, useState } from 'react';
+import { Button, Dropdown, Layout, Menu, Modal, Spin, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import {
     AuditOutlined,
@@ -9,14 +9,18 @@ import {
     DashboardOutlined,
     DatabaseOutlined,
     FileTextOutlined,
+    KeyOutlined,
     LogoutOutlined,
+    PoweroffOutlined,
     SettingOutlined,
     TeamOutlined,
     UnorderedListOutlined,
     UserOutlined,
 } from '@ant-design/icons';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { api } from '../core/api/client';
 import { useAuth } from '../core/auth/AuthContext';
+import { ChangePasswordModal } from '../core/auth/ChangePasswordModal';
 import { useMe } from '../core/auth/useMe';
 import { NotificationBell } from '../modules/notifications/NotificationBell';
 import { ModuleBoundary } from './ModuleBoundary';
@@ -34,6 +38,24 @@ export function Shell() {
     const navigate = useNavigate();
     const me = useMe();
     const admin = user?.role === 'ORG_ADMIN';
+    const [modal, modalHolder] = Modal.useModal();
+    const [changingPassword, setChangingPassword] = useState(false);
+
+    const signOutEverywhere = () =>
+        modal.confirm({
+            title: 'Sign out on every device?',
+            content: 'Everyone using your account is signed out, including you here.',
+            okText: 'Sign out everywhere',
+            okButtonProps: { danger: true },
+            onOk: async () => {
+                try {
+                    await api('/auth/logout-all', { method: 'POST' });
+                } catch {
+                    // Sign out here anyway
+                }
+                await logout();
+            },
+        });
 
     const items: MenuProps['items'] = [
         { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
@@ -59,6 +81,7 @@ export function Shell() {
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
+            {modalHolder}
             <Layout.Sider collapsible breakpoint="lg" theme="dark">
                 <div style={{ color: '#fff', fontWeight: 600, fontSize: 16, padding: '16px 20px' }}>Compliance</div>
                 <Menu
@@ -88,11 +111,19 @@ export function Shell() {
                         menu={{
                             items: [
                                 {
-                                    key: 'logout',
-                                    icon: <LogoutOutlined />,
-                                    label: 'Sign out',
-                                    onClick: () => void logout(),
+                                    key: 'password',
+                                    icon: <KeyOutlined />,
+                                    label: 'Change password',
+                                    onClick: () => setChangingPassword(true),
                                 },
+                                {
+                                    key: 'everywhere',
+                                    icon: <PoweroffOutlined />,
+                                    label: 'Sign out on all devices',
+                                    onClick: signOutEverywhere,
+                                },
+                                { type: 'divider' },
+                                { key: 'logout', icon: <LogoutOutlined />, label: 'Sign out', onClick: () => void logout() },
                             ],
                         }}
                     >
@@ -116,6 +147,8 @@ export function Shell() {
                     </ModuleBoundary>
                 </Layout.Content>
             </Layout>
+
+            <ChangePasswordModal open={changingPassword} onClose={() => setChangingPassword(false)} />
         </Layout>
     );
 }

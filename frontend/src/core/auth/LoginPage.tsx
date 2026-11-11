@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, Button, Card, Form, Input, Typography } from 'antd';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { ApiError } from '../../core/api/client';
 import { useAuth } from '../../core/auth/AuthContext';
 
@@ -12,6 +12,7 @@ export default function LoginPage() {
 
     const from = (location.state as { from?: string } | null)?.from;
     const target = typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/';
+    const notice = (location.state as { notice?: string } | null)?.notice;
 
     if (status === 'authenticated') return <Navigate to={target} replace />;
 
@@ -35,6 +36,7 @@ export default function LoginPage() {
                 </Typography.Title>
                 <Typography.Paragraph type="secondary">Sign in to continue.</Typography.Paragraph>
 
+                {typeof notice === 'string' && <Alert type="success" showIcon style={{ marginBottom: 16 }} message={notice} />}
                 {status === 'unavailable' && (
                     <Alert
                         type="warning"
@@ -60,6 +62,9 @@ export default function LoginPage() {
                         Sign in
                     </Button>
                 </Form>
+                <div style={{ textAlign: 'center', marginTop: 12 }}>
+                    <Link to="/forgot-password">Forgot your password?</Link>
+                </div>
             </Card>
         </div>
     );

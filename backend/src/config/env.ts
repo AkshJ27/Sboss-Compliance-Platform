@@ -24,6 +24,7 @@ const schema = z
             .default('true')
             .transform((v) => v === 'true'),
         DIGEST_HOUR: z.coerce.number().int().min(0).max(23).default(8),
+        ALLOW_REGISTRATION: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
     })
     .superRefine((v, ctx) => {
         if (v.STORAGE_DRIVER === 's3') {

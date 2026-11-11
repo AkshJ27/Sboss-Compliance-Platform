@@ -29,7 +29,12 @@ export type RefreshResult =
 
 async function doRefresh(): Promise<RefreshResult> {
     try {
-        const res = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
+        const res = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            credentials: 'include',
+            // A hung request must not hold the lock for other tabs forever
+            signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(15_000) : undefined,
+        });
         if (res.status === 401 || res.status === 403) {
             accessToken = null;
             return { kind: 'denied' };
@@ -43,11 +48,21 @@ async function doRefresh(): Promise<RefreshResult> {
     }
 }
 
+// Separate browser tabs take turns, so two tabs never rotate the same refresh cookie at once.
+// Awaiting the lock's result gives a plain RefreshResult whichever way TypeScript types the call.
+async function refreshExclusively(): Promise<RefreshResult> {
+    if ('locks' in navigator) {
+        const result: RefreshResult = await navigator.locks.request('compliance-session-refresh', () => doRefresh());
+        return result;
+    }
+    return doRefresh();
+}
+
 // Everyone who asks while a refresh is running gets the same answer
 let refreshing: Promise<RefreshResult> | null = null;
 export function refreshSession(): Promise<RefreshResult> {
     if (!refreshing) {
-        refreshing = doRefresh().finally(() => {
+        refreshing = refreshExclusively().finally(() => {
             refreshing = null;
         });
     }

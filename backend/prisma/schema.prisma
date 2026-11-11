@@ -49,6 +49,8 @@ model User {
   lastLoginAt      DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+  passwordSetAt DateTime? @default(now())
+  authTokens    AuthToken[]
 
   org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
@@ -585,4 +587,25 @@ model JobRun {
   error      String?
 
   @@unique([name, runKey])
+}
+
+enum AuthTokenType {
+  INVITE
+  PASSWORD_RESET
+}
+
+model AuthToken {
+  id          String        @id @default(uuid())
+  userId      String
+  type        AuthTokenType
+  tokenHash   String        @unique
+  expiresAt   DateTime
+  usedAt      DateTime?     // set when the link is used or replaced by a newer one
+  createdById String?
+  createdAt   DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, createdAt])
+  @@index([expiresAt])
 }

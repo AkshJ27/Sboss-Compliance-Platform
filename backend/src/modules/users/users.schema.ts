@@ -3,11 +3,12 @@ import { emailField, nameField, passwordField } from '../../lib/validators';
 
 const roleField = z.enum(['ORG_ADMIN', 'MEMBER', 'VIEWER']);
 
+// Without a password, the person is invited by email and chooses their own
 export const createUserSchema = z
     .object({
         name: nameField,
         email: emailField,
-        password: passwordField,
+        password: passwordField.optional(),
         role: roleField.default('MEMBER'),
     })
     .strict();

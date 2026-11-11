@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isWeakPassword } from './password-policy';
 
 export const emailField = z
     .string()
@@ -11,7 +12,8 @@ export const emailField = z
 export const passwordField = z
     .string()
     .min(10, 'Password must be at least 10 characters')
-    .max(72, 'Password must be at most 72 characters');
+    .max(72, 'Password must be at most 72 characters')
+    .refine((v) => !isWeakPassword(v), 'Choose a password that is harder to guess');
 
 export const nameField = z.string().trim().min(2, 'Too short').max(120);
 

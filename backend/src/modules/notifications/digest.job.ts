@@ -148,5 +148,16 @@ export async function purgeOld() {
     const jobRuns = await prisma.jobRun.deleteMany({
         where: { startedAt: { lt: new Date(Date.now() - 180 * DAY) } },
     });
-    return { purgedNotifications: notifications.count, purgedJobRuns: jobRuns.count };
+    const authTokens = await prisma.authToken.deleteMany({
+        where: { createdAt: { lt: new Date(Date.now() - 30 * DAY) } },
+    });
+    const refreshTokens = await prisma.refreshToken.deleteMany({
+        where: { expiresAt: { lt: new Date(Date.now() - 30 * DAY) } },
+    });
+    return {
+        purgedNotifications: notifications.count,
+        purgedJobRuns: jobRuns.count,
+        purgedAuthTokens: authTokens.count,
+        purgedRefreshTokens: refreshTokens.count,
+    };
 }

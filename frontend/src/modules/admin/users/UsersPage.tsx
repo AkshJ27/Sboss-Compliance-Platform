@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Popconfirm, Radio, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { TableProps } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,6 +19,8 @@ const ROLE_OPTIONS = [
     { value: 'ORG_ADMIN', label: 'Admin: manages the company setup' },
 ];
 
+const isLocked = (r: UserRow) => r.lockedUntil !== null && new Date(r.lockedUntil) > new Date();
+
 function generatePassword(): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
     const bytes = new Uint32Array(16);
@@ -26,16 +28,26 @@ function generatePassword(): string {
     return Array.from(bytes, (n) => chars[n % chars.length]).join('');
 }
 
-type NewValues = { name: string; email: string; password: string; role: Role };
+type NewValues = { name: string; email: string; method: 'invite' | 'password'; password?: string; role: Role };
+type CreateResponse = UserRow & { invite: { emailed: boolean } | null };
+type Created = { email: string; password?: string; invite: { emailed: boolean } | null };
 
-function NewUserModal({ busy, onSave, onCancel }: { busy: boolean; onSave: (v: NewValues) => void; onCancel: () => void }) {
+function NewUserModal({
+    busy,
+    onSave,
+    onCancel,
+}: {
+    busy: boolean;
+    onSave: (v: NewValues) => void;
+    onCancel: () => void;
+}) {
     const [form] = Form.useForm<NewValues>();
     return (
         <Modal open title="New user" okText="Create" confirmLoading={busy} onOk={() => form.submit()} onCancel={onCancel} destroyOnClose>
             <Form<NewValues>
                 form={form}
                 layout="vertical"
-                initialValues={{ role: 'MEMBER' }}
+                initialValues={{ role: 'MEMBER', method: 'invite' }}
                 onFinish={(v) => onSave({ ...v, name: v.name.trim(), email: v.email.trim() })}
             >
                 <Form.Item
@@ -51,29 +63,48 @@ function NewUserModal({ busy, onSave, onCancel }: { busy: boolean; onSave: (v: N
                 <Form.Item label="Email" name="email" rules={[{ required: true, type: 'email', message: 'Enter a valid email' }]}>
                     <Input maxLength={254} autoComplete="off" />
                 </Form.Item>
-                <Form.Item
-                    label="Password"
-                    name="password"
-                    rules={[
-                        { required: true, message: 'Enter a password' },
-                        { min: 10, message: 'At least 10 characters' },
-                        { max: 72, message: 'At most 72 characters' },
-                    ]}
-                    extra={
-                        <Button
-                            type="link"
-                            size="small"
-                            style={{ padding: 0 }}
-                            onClick={() => form.setFieldValue('password', generatePassword())}
-                        >
-                            Generate a strong password
-                        </Button>
-                    }
-                >
-                    <Input.Password autoComplete="new-password" />
-                </Form.Item>
                 <Form.Item label="Role" name="role" rules={[{ required: true }]}>
                     <Select options={ROLE_OPTIONS} />
+                </Form.Item>
+                <Form.Item label="How do they get access?" name="method">
+                    <Radio.Group
+                        options={[
+                            { value: 'invite', label: 'Send an invitation email (recommended)' },
+                            { value: 'password', label: 'I will set a password myself' },
+                        ]}
+                        style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+                    />
+                </Form.Item>
+                <Form.Item noStyle shouldUpdate={(p, c) => p.method !== c.method}>
+                    {({ getFieldValue }) =>
+                        getFieldValue('method') === 'password' ? (
+                            <Form.Item
+                                label="Password"
+                                name="password"
+                                rules={[
+                                    { required: true, message: 'Enter a password' },
+                                    { min: 10, message: 'At least 10 characters' },
+                                    { max: 72, message: 'At most 72 characters' },
+                                ]}
+                                extra={
+                                    <Button
+                                        type="link"
+                                        size="small"
+                                        style={{ padding: 0 }}
+                                        onClick={() => form.setFieldValue('password', generatePassword())}
+                                    >
+                                        Generate a strong password
+                                    </Button>
+                                }
+                            >
+                                <Input.Password autoComplete="new-password" />
+                            </Form.Item>
+                        ) : (
+                            <Typography.Paragraph type="secondary">
+                                They receive an email with a link to choose their own password. The link works once and expires in 3 days.
+                            </Typography.Paragraph>
+                        )
+                    }
                 </Form.Item>
             </Form>
         </Modal>
@@ -135,16 +166,28 @@ export default function UsersPage() {
     const [creating, setCreating] = useState(false);
     const [editing, setEditing] = useState<UserRow | null>(null);
     const [busy, setBusy] = useState(false);
-    const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+    const [created, setCreated] = useState<Created | null>(null);
 
     const refresh = () => qc.invalidateQueries({ queryKey: ['users'] });
 
     const create = async (v: NewValues) => {
         setBusy(true);
         try {
-            await api('/users', { method: 'POST', body: v });
+            const res = await api<CreateResponse>('/users', {
+                method: 'POST',
+                body: {
+                    name: v.name,
+                    email: v.email,
+                    role: v.role,
+                    ...(v.method === 'password' ? { password: v.password } : {}),
+                },
+            });
             setCreating(false);
-            setCreated({ email: v.email.toLowerCase(), password: v.password });
+            setCreated({
+                email: v.email.toLowerCase(),
+                password: v.method === 'password' ? v.password : undefined,
+                invite: res.invite,
+            });
             await refresh();
         } catch (e) {
             notify.error(errorText(e));
@@ -185,6 +228,16 @@ export default function UsersPage() {
         }
     };
 
+    const sendLink = async (row: UserRow, kind: 'invite' | 'reset-link') => {
+        try {
+            const res = await api<{ emailed: boolean }>(`/users/${row.id}/${kind}`, { method: 'POST' });
+            if (res.emailed) notify.success(kind === 'invite' ? 'Invitation sent' : 'Reset link sent');
+            else notify.warning('The email could not be sent. Try again later.');
+        } catch (e) {
+            notify.error(errorText(e));
+        }
+    };
+
     const columns: TableProps<UserRow>['columns'] = [
         {
             title: 'Name',
@@ -201,7 +254,13 @@ export default function UsersPage() {
         {
             title: 'Status',
             key: 'status',
-            render: (_, r) => (r.isActive ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>),
+            render: (_, r) => (
+                <Space size={4} wrap>
+                    {r.isActive ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>}
+                    {r.passwordSetAt === null && <Tag color="gold">Invited</Tag>}
+                    {isLocked(r) && <Tag color="red">Locked</Tag>}
+                </Space>
+            ),
         },
         {
             title: 'Last sign-in',
@@ -211,12 +270,27 @@ export default function UsersPage() {
         {
             title: '',
             key: 'actions',
-            width: 210,
+            width: 430,
             render: (_, r) => (
-                <Space>
+                <Space wrap>
                     <Button size="small" onClick={() => setEditing(r)}>
                         Edit
                     </Button>
+                    {r.isActive && r.passwordSetAt === null && (
+                        <Button size="small" onClick={() => void sendLink(r, 'invite')}>
+                            Resend invite
+                        </Button>
+                    )}
+                    {r.isActive && r.passwordSetAt !== null && r.id !== me?.id && (
+                        <Popconfirm
+                            title="Send a password reset link?"
+                            description={`An email goes to ${r.email}. The link works once and expires in 1 hour.`}
+                            okText="Send"
+                            onConfirm={() => void sendLink(r, 'reset-link')}
+                        >
+                            <Button size="small">Send reset link</Button>
+                        </Popconfirm>
+                    )}
                     <Popconfirm
                         title={r.isActive ? 'Deactivate this user?' : 'Activate this user?'}
                         description={r.isActive ? 'They are signed out and cannot sign in again until you activate them.' : undefined}
@@ -264,7 +338,7 @@ export default function UsersPage() {
                 columns={columns}
                 dataSource={q.data ?? []}
                 loading={q.isFetching}
-                scroll={{ x: 800 }}
+                scroll={{ x: 1100 }}
                 pagination={{ pageSize: 25, hideOnSinglePage: true }}
             />
 
@@ -290,20 +364,40 @@ export default function UsersPage() {
                     </Button>
                 }
             >
-                <Alert
-                    type="warning"
-                    showIcon
-                    style={{ marginBottom: 12 }}
-                    message="Copy this password now"
-                    description="It cannot be shown again. Share it through a secure channel."
-                />
-                <div>Email: {created?.email}</div>
-                <div>
-                    Password:{' '}
-                    <Typography.Text code copyable>
-                        {created?.password ?? ''}
-                    </Typography.Text>
-                </div>
+                {created?.invite?.emailed && (
+                    <Alert
+                        type="success"
+                        showIcon
+                        message={`An invitation was sent to ${created.email}`}
+                        description="The link works once and expires in 3 days. You can resend it from their row."
+                    />
+                )}
+                {created?.invite && !created.invite.emailed && (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        message="The user was created, but the invitation email could not be sent"
+                        description="Use Resend invite on their row once email is working."
+                    />
+                )}
+                {created?.password && (
+                    <>
+                        <Alert
+                            type="warning"
+                            showIcon
+                            style={{ marginBottom: 12 }}
+                            message="Copy this password now"
+                            description="It cannot be shown again. Share it through a secure channel."
+                        />
+                        <div>Email: {created.email}</div>
+                        <div>
+                            Password:{' '}
+                            <Typography.Text code copyable>
+                                {created.password}
+                            </Typography.Text>
+                        </div>
+                    </>
+                )}
             </Modal>
         </Space>
     );

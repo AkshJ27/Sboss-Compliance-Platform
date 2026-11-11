@@ -5,6 +5,8 @@ import { Shell } from './app/Shell';
 import { RequireAuth } from './core/auth/RequireAuth';
 import { RequireRole } from './core/auth/RequireRole';
 import LoginPage from './core/auth/LoginPage';
+import ForgotPasswordPage from './core/auth/ForgotPasswordPage';
+import SetPasswordPage from './core/auth/SetPasswordPage';
 
 const DashboardPage = lazy(() => import('./modules/dashboard/DashboardPage'));
 const RecordsPage = lazy(() => import('./modules/records/RecordsPage'));
@@ -19,6 +21,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<SetPasswordPage mode="reset" />} />
+      <Route path="/accept-invite" element={<SetPasswordPage mode="invite" />} />
       <Route element={<RequireAuth />}>
         <Route element={<Shell />}>
           <Route index element={<DashboardPage />} />
