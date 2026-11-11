@@ -39,6 +39,7 @@ export type RecordDetail = {
         title: string;
         description: string | null;
         form: string | null;
+        event: string | null;
         reference: string | null;
         penalty: string | null;
         imprisonment: boolean;

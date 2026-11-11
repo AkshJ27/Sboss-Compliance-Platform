@@ -185,7 +185,10 @@ export default function RecordsPage() {
             title: 'Period',
             key: 'period',
             width: 200,
-            render: (_, r) => `${formatDate(r.periodStart)} to ${formatDate(r.periodEnd)}`,
+            render: (_, r) =>
+                r.compliance.frequency === 'EVENT_BASED'
+                    ? `Event on ${formatDate(r.periodStart)}`
+                    : `${formatDate(r.periodStart)} to ${formatDate(r.periodEnd)}`,
         },
         {
             title: 'Risk',

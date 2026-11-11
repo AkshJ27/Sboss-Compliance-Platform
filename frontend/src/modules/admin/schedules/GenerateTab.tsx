@@ -177,7 +177,7 @@ export function GenerateTab() {
                             <Alert
                                 type="info"
                                 showIcon
-                                message="Event-based compliances start from a triggering event, not from the calendar. They are not generated here."
+                                message="Event-based compliances start when something happens, not from the calendar. Record the event under Setup, Events."
                             />
                         )}
 

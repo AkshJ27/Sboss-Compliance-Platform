@@ -24,7 +24,19 @@ export function RecordDetails({ r }: { r: RecordDetail }) {
                     { key: 'loc', label: 'Location', children: `${r.location.name}, ${r.location.state}` },
                     { key: 'dept', label: 'Department', children: r.department?.name ?? '-' },
                     { key: 'vert', label: 'Vertical', children: r.vertical?.name ?? '-' },
-                    { key: 'period', label: 'Period', span: 2, children: `${formatDate(r.periodStart)} to ${formatDate(r.periodEnd)}` },
+                    ...(c.frequency === 'EVENT_BASED'
+                        ? [
+                            { key: 'event', label: 'Event', span: 2, children: c.event ?? '-' },
+                            { key: 'eventDate', label: 'Event date', span: 2, children: formatDate(r.periodStart) },
+                        ]
+                        : [
+                            {
+                                key: 'period',
+                                label: 'Period',
+                                span: 2,
+                                children: `${formatDate(r.periodStart)} to ${formatDate(r.periodEnd)}`,
+                            },
+                        ]),
                     { key: 'due', label: 'Due date', children: formatDate(r.dueDate) },
                     { key: 'form', label: 'Form', children: c.form ?? '-' },
                     { key: 'risk', label: 'Risk', children: <Tag color={RISK_COLOR[c.risk]}>{titleCase(c.risk)}</Tag> },

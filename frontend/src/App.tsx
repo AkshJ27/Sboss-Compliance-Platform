@@ -16,6 +16,7 @@ const UsersPage = lazy(() => import('./modules/admin/users/UsersPage'));
 const SchedulesPage = lazy(() => import('./modules/admin/schedules/SchedulesPage'));
 const LibraryPage = lazy(() => import('./modules/admin/library/LibraryPage'));
 const AuditPage = lazy(() => import('./modules/admin/audit/AuditPage'));
+const EventsPage = lazy(() => import('./modules/admin/events/EventsPage'));
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="admin" element={<RequireRole roles={['ORG_ADMIN']} />}>
             <Route path="masters" element={<MastersPage />} />
+            <Route path="events" element={<EventsPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="schedules" element={<SchedulesPage />} />
             <Route path="library" element={<LibraryPage />} />

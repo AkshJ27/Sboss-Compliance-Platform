@@ -8,6 +8,7 @@ import {
     CalendarOutlined,
     DashboardOutlined,
     DatabaseOutlined,
+    ThunderboltOutlined,
     FileTextOutlined,
     KeyOutlined,
     LogoutOutlined,
@@ -70,6 +71,7 @@ export function Shell() {
                     children: [
                         { key: '/admin/masters', icon: <DatabaseOutlined />, label: 'Masters' },
                         { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
+                        { key: '/admin/events', icon: <ThunderboltOutlined />, label: 'Events' },
                         { key: '/admin/schedules', icon: <CalendarOutlined />, label: 'Schedules' },
                         { key: '/admin/library', icon: <BookOutlined />, label: 'Law library' },
                         { key: '/admin/audit', icon: <AuditOutlined />, label: 'Audit log' },

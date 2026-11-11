@@ -181,6 +181,7 @@ export const instanceInclude = {
             code: true,
             title: true,
             form: true,
+            event: true,
             description: true,
             reference: true,
             penalty: true,

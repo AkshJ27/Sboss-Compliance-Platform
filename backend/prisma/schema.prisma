@@ -32,6 +32,7 @@ model Organization {
   instanceEvents InstanceEvent[]
   documents Document[]
   notifications Notification[]
+  eventTriggers EventTrigger[]
 
 }
 
@@ -51,6 +52,7 @@ model User {
   updatedAt        DateTime  @updatedAt
   passwordSetAt DateTime? @default(now())
   authTokens    AuthToken[]
+  eventTriggers EventTrigger[]
 
   org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
@@ -93,6 +95,7 @@ model Entity {
   updatedAt DateTime @updatedAt
   schedules ComplianceSchedule[]
   instances ComplianceInstance[]
+  eventTriggers EventTrigger[]
 
   org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   locations Location[]
@@ -163,6 +166,7 @@ model Location {
   updatedAt      DateTime @updatedAt
   schedules ComplianceSchedule[]
   instances ComplianceInstance[]
+  eventTriggers EventTrigger[]
 
   org          Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   entity       Entity        @relation(fields: [entityId], references: [id])
@@ -447,6 +451,10 @@ model ComplianceInstance {
   managerActionById  String?
   closedAt           DateTime?
   closedById         String?
+  triggerId String?
+  trigger   EventTrigger? @relation(fields: [triggerId], references: [id])
+
+  @@index([triggerId])
 
   events InstanceEvent[]
   documents Document[]
@@ -534,6 +542,7 @@ enum NotificationType {
   RETURNED
   CLOSED
   ASSIGNED
+  EVENT_TRIGGERED
   DAILY_DIGEST
 }
 
@@ -608,4 +617,27 @@ model AuthToken {
 
   @@index([userId, type, createdAt])
   @@index([expiresAt])
+}
+
+model EventTrigger {
+  id            String    @id @default(uuid())
+  orgId         String
+  entityId      String
+  locationId    String
+  event         String
+  eventDate     DateTime  @db.Date
+  note          String?
+  createdById   String
+  createdAt     DateTime  @default(now())
+  cancelledAt   DateTime?
+  cancelledById String?
+
+  org       Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  entity    Entity               @relation(fields: [entityId], references: [id])
+  location  Location             @relation(fields: [locationId], references: [id])
+  createdBy User                 @relation(fields: [createdById], references: [id])
+  instances ComplianceInstance[]
+
+  @@index([orgId, createdAt])
+  @@index([locationId, eventDate])
 }
