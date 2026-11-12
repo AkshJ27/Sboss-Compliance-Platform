@@ -12,6 +12,7 @@ type NotificationItem = {
     title: string;
     body: string;
     instanceId: string | null;
+    taskId: string | null;
     readAt: string | null;
     createdAt: string;
 };
@@ -39,6 +40,7 @@ function NotificationList({ onClose }: { onClose: () => void }) {
         if (!n.readAt) markOne.mutate(n.id);
         onClose();
         if (n.instanceId) navigate(`/records?open=${n.instanceId}`);
+        else if (n.taskId) navigate(`/tasks?open=${n.taskId}`);
     };
 
     if (list.isError) {

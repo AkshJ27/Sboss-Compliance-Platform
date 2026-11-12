@@ -7,6 +7,7 @@ import {
     BellOutlined,
     FileSearchOutlined,
     ToolOutlined,
+    CheckSquareOutlined,
     BookOutlined,
     CalendarOutlined,
     DashboardOutlined,
@@ -28,11 +29,13 @@ import { ChangePasswordModal } from '../core/auth/ChangePasswordModal';
 import { useMe } from '../core/auth/useMe';
 import { NotificationBell } from '../modules/notifications/NotificationBell';
 import { ModuleBoundary } from './ModuleBoundary';
+import { useMyOverdueTasks } from '../modules/tasks/api';
 
 function selectedKey(path: string) {
     if (path.startsWith('/admin/')) return path.split('/').slice(0, 3).join('/');
     if (path.startsWith('/records')) return '/records';
     if (path.startsWith('/documents')) return '/documents';
+    if (path.startsWith('/tasks')) return '/tasks';
     return '/';
 }
 
@@ -44,6 +47,9 @@ export function Shell() {
     const admin = user?.role === 'ORG_ADMIN';
     const law = useLawSummary(admin);
     const needDecision = law.data?.needDecision ?? 0;
+    const canUseTasks = user?.role !== 'VIEWER';
+    const myTasks = useMyOverdueTasks(user?.id, canUseTasks);
+    const overdueTasks = myTasks.data?.overdue ?? 0;
     const [modal, modalHolder] = Modal.useModal();
     const [changingPassword, setChangingPassword] = useState(false);
 
@@ -67,6 +73,19 @@ export function Shell() {
         { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
         { key: '/records', icon: <UnorderedListOutlined />, label: 'Records' },
         { key: '/documents', icon: <FileTextOutlined />, label: 'Documents' },
+        ...(canUseTasks
+            ? [
+                {
+                    key: '/tasks',
+                    icon: <CheckSquareOutlined />,
+                    label: (
+                        <span>
+                            Tasks <Badge count={overdueTasks} size="small" />
+                        </span>
+                    ),
+                },
+            ]
+            : []),
         ...(admin
             ? [
                 {

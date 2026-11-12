@@ -17,6 +17,7 @@ import { documentsRouter, documentFilesRouter } from './modules/documents/docume
 import { notificationsRouter } from './modules/notifications/notifications.routes';
 import { auditRouter } from './modules/audit/audit.routes';
 import { reportsRouter } from './modules/reports/reports.routes';
+import { tasksRouter } from './modules/tasks/tasks.routes';
 
 export const app = express();
 
@@ -56,6 +57,7 @@ app.use('/api/documents', requireAuth, documentsRouter);
 app.use('/api/notifications', requireAuth, notificationsRouter);
 app.use('/api/audit', requireAuth, auditRouter);
 app.use('/api/reports', requireAuth, reportsRouter);
+app.use('/api/tasks', requireAuth, tasksRouter);
 
 app.use(notFound);
 app.use(errorHandler);

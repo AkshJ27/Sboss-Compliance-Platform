@@ -10,6 +10,7 @@ const select = {
     title: true,
     body: true,
     instanceId: true,
+    taskId: true,
     readAt: true,
     createdAt: true,
 } as const;
