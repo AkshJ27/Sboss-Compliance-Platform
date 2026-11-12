@@ -33,6 +33,7 @@ model Organization {
   documents Document[]
   notifications Notification[]
   eventTriggers EventTrigger[]
+  amendmentDecisions AmendmentDecision[]
 
 }
 
@@ -53,6 +54,7 @@ model User {
   passwordSetAt DateTime? @default(now())
   authTokens    AuthToken[]
   eventTriggers EventTrigger[]
+  amendmentDecisions AmendmentDecision[]
 
   org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
@@ -332,6 +334,7 @@ model Compliance {
   updatedAt         DateTime       @updatedAt
   schedules ComplianceSchedule[]
   instances ComplianceInstance[]
+  amendmentDecisions AmendmentDecision[]
 
   act       Act                  @relation(fields: [actId], references: [id])
   rule      Rule?                @relation(fields: [ruleId], references: [id])
@@ -395,6 +398,13 @@ model ComplianceSchedule {
   manager    User         @relation("ScheduleManager", fields: [managerId], references: [id])
   approver   User?        @relation("ScheduleApprover", fields: [approverId], references: [id])
   instances  ComplianceInstance[]
+  libraryVersion    Int         
+  frequency         Frequency   
+  periodBasis       PeriodBasis 
+  dueDay            Int?
+  dueMonthOffset    Int         
+  event             String?
+  dueDaysAfterEvent Int?
 
   @@unique([locationId, complianceId])
   @@index([orgId, isActive])
@@ -479,6 +489,7 @@ enum InstanceAction {
   APPROVED
   RETURNED
   REASSIGNED
+  DUE_DATE_CHANGED
 }
 
 model InstanceEvent {
@@ -541,6 +552,7 @@ enum NotificationType {
   REVIEW_REQUESTED
   RETURNED
   CLOSED
+  LAW_CHANGE
   ASSIGNED
   EVENT_TRIGGERED
   DAILY_DIGEST
@@ -640,4 +652,32 @@ model EventTrigger {
 
   @@index([orgId, createdAt])
   @@index([locationId, eventDate])
+}
+
+enum AmendmentDecisionType {
+  APPLIED
+  KEPT
+  ACKNOWLEDGED
+}
+
+model AmendmentDecision {
+  id               String                @id @default(uuid())
+  orgId            String
+  complianceId     String
+  decision         AmendmentDecisionType
+  fromVersion      Int
+  toVersion        Int
+  changes          Json
+  schedulesUpdated Int
+  itemsMoved       Int
+  note             String?
+  decidedById      String
+  createdAt        DateTime              @default(now())
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  compliance Compliance   @relation(fields: [complianceId], references: [id])
+  decidedBy  User         @relation(fields: [decidedById], references: [id])
+
+  @@index([orgId, createdAt])
+  @@index([orgId, complianceId])
 }

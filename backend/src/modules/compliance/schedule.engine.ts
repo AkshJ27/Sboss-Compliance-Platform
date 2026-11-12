@@ -78,3 +78,12 @@ export function occurrences(rule: ScheduleRule, start: Date, from: Date, to: Dat
     }
     return out;
 }
+
+// The due date of a period that already exists, under a rule. Used when a law change moves open items.
+export function dueDateForPeriod(
+    rule: Pick<ScheduleRule, 'dueDay' | 'dueMonthOffset'>,
+    periodEnd: Date,
+): Date | null {
+    if (rule.dueDay == null) return null;
+    return dueOn(monthIndex(periodEnd) + rule.dueMonthOffset, rule.dueDay);
+}           

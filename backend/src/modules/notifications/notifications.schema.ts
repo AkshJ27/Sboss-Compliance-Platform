@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { dateOnlyField } from '../../lib/validators';
 
 export const NOTIFICATION_TYPES = [
-    'REVIEW_REQUESTED', 'RETURNED', 'CLOSED', 'ASSIGNED', 'DAILY_DIGEST', 'EVENT_TRIGGERED',
+    'REVIEW_REQUESTED', 'RETURNED', 'CLOSED', 'ASSIGNED', 'DAILY_DIGEST', 'EVENT_TRIGGERED', 'LAW_CHANGE',
 ] as const;
 
 const uuid = z.string().uuid();

@@ -13,13 +13,15 @@ type Db = Prisma.TransactionClient;
 
 const MAX_SCHEDULES = 5000;
 
-// Active schedules at a location whose compliance starts from an event
+// Active schedules at a location whose pinned rule starts from an event
 function eventSchedules(orgId: string, locationId: string): Prisma.ComplianceScheduleWhereInput {
     return {
         orgId,
         locationId,
         isActive: true,
-        compliance: { isActive: true, frequency: 'EVENT_BASED', event: { not: null } },
+        frequency: 'EVENT_BASED',
+        event: { not: null },
+        compliance: { isActive: true },
         location: { isActive: true, entity: { isActive: true } },
     };
 }
@@ -28,10 +30,10 @@ function eventSchedules(orgId: string, locationId: string): Prisma.ComplianceSch
 export async function eventOptions(actor: AuthUser, locationId: string) {
     const rows = await prisma.complianceSchedule.findMany({
         where: eventSchedules(actor.orgId, locationId),
-        select: { compliance: { select: { event: true } } },
+        select: { event: true },
         take: MAX_SCHEDULES,
     });
-    return groupEvents(rows.flatMap((r) => (r.compliance.event ? [r.compliance.event] : []))).map((g) => ({
+    return groupEvents(rows.flatMap((r) => (r.event ? [r.event] : []))).map((g) => ({
         event: g.label,
         items: g.count,
     }));
@@ -67,9 +69,9 @@ async function loadPlan(db: Db, actor: AuthUser, input: TriggerInput) {
             managerId: true,
             approverId: true,
             startDate: true,
-            compliance: {
-                select: { code: true, title: true, risk: true, event: true, dueDaysAfterEvent: true },
-            },
+            event: true,
+            dueDaysAfterEvent: true,
+            compliance: { select: { code: true, title: true, risk: true } },
         },
         orderBy: { id: 'asc' },
         take: MAX_SCHEDULES + 1,
@@ -78,11 +80,11 @@ async function loadPlan(db: Db, actor: AuthUser, input: TriggerInput) {
         throw new HttpError(400, `Too many event-based schedules at this location (more than ${MAX_SCHEDULES})`);
     }
 
-    const matching = rows.filter((r) => r.compliance.event !== null && normalizeEvent(r.compliance.event) === key);
+    const matching = rows.filter((r) => r.event !== null && normalizeEvent(r.event) === key);
     if (matching.length === 0) {
         throw new HttpError(400, 'No active schedule at this location uses that event');
     }
-    const label = groupEvents(matching.map((r) => r.compliance.event as string))[0].label;
+    const label = groupEvents(matching.map((r) => r.event as string))[0].label;
 
     const eventDate = parseDateOnly(input.eventDate);
     const found = await db.complianceInstance.findMany({
@@ -93,8 +95,8 @@ async function loadPlan(db: Db, actor: AuthUser, input: TriggerInput) {
     const plan = planTrigger(
         matching.map((r) => ({
             id: r.id,
-            event: r.compliance.event,
-            dueDaysAfterEvent: r.compliance.dueDaysAfterEvent,
+            event: r.event,
+            dueDaysAfterEvent: r.dueDaysAfterEvent,
             startDate: toDateOnly(r.startDate),
         })),
         key,

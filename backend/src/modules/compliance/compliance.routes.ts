@@ -8,6 +8,7 @@ import { listInstances } from './instances.query';
 import { dashboardRouter } from './dashboard.routes';
 import { workflowRouter } from './workflow.routes';
 import { eventsRouter } from './events.routes';
+import { amendmentsRouter } from './amendments.routes';
 
 export const complianceRouter = Router();
 
@@ -54,3 +55,4 @@ complianceRouter.get('/instances/:id', async (req, res) => {
 
 complianceRouter.use('/instances', workflowRouter);
 complianceRouter.use('/events', eventsRouter);
+complianceRouter.use('/amendments', amendmentsRouter);

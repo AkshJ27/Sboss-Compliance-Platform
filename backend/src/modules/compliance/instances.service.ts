@@ -57,9 +57,11 @@ export async function generate(actor: AuthUser, input: GenerateInput, dryRun: bo
             managerId: true,
             approverId: true,
             startDate: true,
-            compliance: {
-                select: { frequency: true, periodBasis: true, dueDay: true, dueMonthOffset: true, risk: true },
-            },
+            frequency: true,
+            periodBasis: true,
+            dueDay: true,
+            dueMonthOffset: true,
+            compliance: { select: { risk: true } },
         },
     });
 
@@ -67,11 +69,11 @@ export async function generate(actor: AuthUser, input: GenerateInput, dryRun: bo
     let eventBasedSkipped = 0;
 
     for (const s of schedules) {
-        if (s.compliance.frequency === 'EVENT_BASED') {
+        if (s.frequency === 'EVENT_BASED') {
             eventBasedSkipped++;
             continue;
         }
-        for (const o of occurrences(s.compliance, s.startDate, from, to)) {
+        for (const o of occurrences(s, s.startDate, from, to)) {
             rows.push({
                 orgId,
                 scheduleId: s.id,

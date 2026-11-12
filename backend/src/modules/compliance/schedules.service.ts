@@ -70,6 +70,12 @@ export async function activate(actor: AuthUser, input: ActivateInput, dryRun: bo
             title: true,
             risk: true,
             frequency: true,
+            version: true,
+            periodBasis: true,
+            dueDay: true,
+            dueMonthOffset: true,
+            event: true,
+            dueDaysAfterEvent: true,
             act: { select: { id: true, name: true, jurisdiction: true, state: true } },
         },
         take: MAX_ACTIVATE + 1,
@@ -142,6 +148,13 @@ export async function activate(actor: AuthUser, input: ActivateInput, dryRun: bo
                         managerId: input.managerId,
                         approverId: input.approverId ?? null,
                         startDate,
+                        libraryVersion: c.version,
+                        frequency: c.frequency,
+                        periodBasis: c.periodBasis,
+                        dueDay: c.dueDay,
+                        dueMonthOffset: c.dueMonthOffset,
+                        event: c.event,
+                        dueDaysAfterEvent: c.dueDaysAfterEvent,
                     })),
                     skipDuplicates: true,
                 });
@@ -240,7 +253,7 @@ export async function updateSchedule(actor: AuthUser, id: string, input: Schedul
         if (approverId && (approverId === ownerId || approverId === managerId)) {
             throw new HttpError(400, 'The approver must be a different person from the owner and manager');
         }
-        if (before.compliance.risk === 'HIGH' && !approverId) {
+        if (before.compliance.risk === 'HIGH' && !approverId && input.isActive !== false) {
             throw new HttpError(400, 'A high-risk compliance needs an approver');
         }
         await assertAssignees(tx, actor.orgId, [input.ownerId, input.managerId, input.approverId]);

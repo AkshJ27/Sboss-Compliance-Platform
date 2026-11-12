@@ -7,6 +7,7 @@ import * as s from './library.schema';
 import * as lib from './library.service';
 import { parseCsv } from './import.parser';
 import { planImport, commitImport } from './import.service';
+import { notifyLawChange } from '../notifications/law-change.notify';
 
 export const libraryRouter = Router();
 
@@ -37,7 +38,10 @@ libraryRouter.get('/compliances/:id', async (req, res) => {
 libraryRouter.patch('/compliances/:id', requirePlatformAdmin, async (req, res) => {
     const { id } = s.idParamSchema.parse(req.params);
     const input = s.complianceUpdateSchema.parse(req.body);
-    res.json(await lib.updateCompliance(getUser(req), id, input));
+    const updated = await lib.updateCompliance(getUser(req), id, input);
+    // After the reply, and never allowed to break it. The waiting list is derived, so a lost notice is harmless.
+    void notifyLawChange([id]).catch((e) => console.error('[law-change] could not notify', e));
+    res.json(updated);
 });
 
 libraryRouter.post('/import', requirePlatformAdmin, csvUpload, async (req, res) => {
@@ -63,5 +67,6 @@ libraryRouter.post('/import', requirePlatformAdmin, csvUpload, async (req, res) 
         return;
     }
     await commitImport(getUser(req), plan);
+    void notifyLawChange(plan.updates.map((u) => u.id)).catch((e) => console.error('[law-change] could not notify', e));
     res.status(201).json(body);
 });

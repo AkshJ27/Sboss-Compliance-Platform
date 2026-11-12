@@ -27,6 +27,7 @@ export const EMAIL_TYPES: ReadonlySet<NotificationType> = new Set<NotificationTy
     'ASSIGNED',
     'DAILY_DIGEST',
     'EVENT_TRIGGERED',
+    'LAW_CHANGE'
 ]);
 
 const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();
