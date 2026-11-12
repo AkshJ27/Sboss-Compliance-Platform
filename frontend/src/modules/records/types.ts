@@ -67,10 +67,18 @@ export type RecordDetail = {
 
 export type HistoryEvent = {
     id: string;
-    action: 'DRAFT_SAVED' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'APPROVED' | 'RETURNED' | 'REASSIGNED';
+    action:
+    | 'DRAFT_SAVED'
+    | 'SUBMITTED'
+    | 'MANAGER_APPROVED'
+    | 'APPROVED'
+    | 'RETURNED'
+    | 'REASSIGNED'
+    | 'DUE_DATE_CHANGED';
     fromStatus: StoredStatus | null;
     toStatus: StoredStatus | null;
     remarks: string | null;
+    data?: unknown;
     createdAt: string;
     actor: Person;
 };

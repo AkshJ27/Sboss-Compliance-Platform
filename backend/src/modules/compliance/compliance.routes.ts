@@ -9,6 +9,8 @@ import { dashboardRouter } from './dashboard.routes';
 import { workflowRouter } from './workflow.routes';
 import { eventsRouter } from './events.routes';
 import { amendmentsRouter } from './amendments.routes';
+import { bulkRouter } from './bulk.routes';
+
 
 export const complianceRouter = Router();
 
@@ -56,3 +58,4 @@ complianceRouter.get('/instances/:id', async (req, res) => {
 complianceRouter.use('/instances', workflowRouter);
 complianceRouter.use('/events', eventsRouter);
 complianceRouter.use('/amendments', amendmentsRouter);
+complianceRouter.use('/bulk', bulkRouter);

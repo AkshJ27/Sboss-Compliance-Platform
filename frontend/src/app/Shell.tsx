@@ -1,9 +1,12 @@
 import { Suspense, useState } from 'react';
-import { Button, Dropdown, Layout, Menu, Modal, Spin, Typography } from 'antd';
+import { Badge, Button, Dropdown, Layout, Menu, Modal, Spin, Typography } from 'antd';
+import { useLawSummary } from '../modules/admin/lawchanges/api';
 import type { MenuProps } from 'antd';
 import {
     AuditOutlined,
     BellOutlined,
+    FileSearchOutlined,
+    ToolOutlined,
     BookOutlined,
     CalendarOutlined,
     DashboardOutlined,
@@ -39,6 +42,8 @@ export function Shell() {
     const navigate = useNavigate();
     const me = useMe();
     const admin = user?.role === 'ORG_ADMIN';
+    const law = useLawSummary(admin);
+    const needDecision = law.data?.needDecision ?? 0;
     const [modal, modalHolder] = Modal.useModal();
     const [changingPassword, setChangingPassword] = useState(false);
 
@@ -67,11 +72,25 @@ export function Shell() {
                 {
                     key: 'admin',
                     icon: <SettingOutlined />,
-                    label: 'Setup',
+                    label: (
+                        <span>
+                            Setup <Badge count={needDecision} size="small" />
+                        </span>
+                    ),
                     children: [
                         { key: '/admin/masters', icon: <DatabaseOutlined />, label: 'Masters' },
                         { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
+                        { key: '/admin/bulk', icon: <ToolOutlined />, label: 'Bulk tools' },
                         { key: '/admin/events', icon: <ThunderboltOutlined />, label: 'Events' },
+                        {
+                            key: '/admin/law-changes',
+                            icon: <FileSearchOutlined />,
+                            label: (
+                                <span>
+                                    Law changes <Badge count={needDecision} size="small" />
+                                </span>
+                            ),
+                        },
                         { key: '/admin/schedules', icon: <CalendarOutlined />, label: 'Schedules' },
                         { key: '/admin/library', icon: <BookOutlined />, label: 'Law library' },
                         { key: '/admin/audit', icon: <AuditOutlined />, label: 'Audit log' },

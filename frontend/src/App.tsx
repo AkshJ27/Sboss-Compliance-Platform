@@ -14,9 +14,11 @@ const DocumentsPage = lazy(() => import('./modules/documents/DocumentsPage'));
 const MastersPage = lazy(() => import('./modules/admin/masters/MastersPage'));
 const UsersPage = lazy(() => import('./modules/admin/users/UsersPage'));
 const SchedulesPage = lazy(() => import('./modules/admin/schedules/SchedulesPage'));
+const BulkToolsPage = lazy(() => import('./modules/admin/bulk/BulkToolsPage'));
+const EventsPage = lazy(() => import('./modules/admin/events/EventsPage'));
+const LawChangesPage = lazy(() => import('./modules/admin/lawchanges/LawChangesPage'));
 const LibraryPage = lazy(() => import('./modules/admin/library/LibraryPage'));
 const AuditPage = lazy(() => import('./modules/admin/audit/AuditPage'));
-const EventsPage = lazy(() => import('./modules/admin/events/EventsPage'));
 
 export default function App() {
   return (
@@ -32,9 +34,11 @@ export default function App() {
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="admin" element={<RequireRole roles={['ORG_ADMIN']} />}>
             <Route path="masters" element={<MastersPage />} />
-            <Route path="events" element={<EventsPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="schedules" element={<SchedulesPage />} />
+            <Route path="bulk" element={<BulkToolsPage />} />
+            <Route path="events" element={<EventsPage />} />
+            <Route path="law-changes" element={<LawChangesPage />} />
             <Route path="library" element={<LibraryPage />} />
             <Route path="audit" element={<AuditPage />} />
           </Route>

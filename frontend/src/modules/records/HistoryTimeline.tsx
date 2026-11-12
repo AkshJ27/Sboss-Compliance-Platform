@@ -1,5 +1,5 @@
 import { Alert, Button, Empty, Skeleton, Tag, Timeline, Typography } from 'antd';
-import { formatDateTime, titleCase } from '../../core/format';
+import { formatDate, formatDateTime, titleCase } from '../../core/format';
 import { useHistory } from './api';
 import type { HistoryEvent } from './types';
 
@@ -10,6 +10,7 @@ const TEXT: Record<HistoryEvent['action'], string> = {
     APPROVED: 'approved this item',
     RETURNED: 'returned this item',
     REASSIGNED: 'changed the people on this item',
+    DUE_DATE_CHANGED: 'changed the due date after a change in the law',
 };
 
 const COLOR: Record<HistoryEvent['action'], string> = {
@@ -19,7 +20,18 @@ const COLOR: Record<HistoryEvent['action'], string> = {
     APPROVED: 'green',
     RETURNED: 'red',
     REASSIGNED: 'orange',
+    DUE_DATE_CHANGED: 'orange',
 };
+
+// The event stores the old and new due dates as plain dates
+function dueDateDetail(data: unknown): string | null {
+    if (typeof data !== 'object' || data === null) return null;
+    const d = data as { from?: unknown; to?: unknown };
+    if (typeof d.to !== 'string') return null;
+    return typeof d.from === 'string'
+        ? `From ${formatDate(d.from)} to ${formatDate(d.to)}`
+        : `Now due on ${formatDate(d.to)}`;
+}
 
 export function HistoryTimeline({ id }: { id: string }) {
     const q = useHistory(id);
@@ -54,12 +66,15 @@ export function HistoryTimeline({ id }: { id: string }) {
                                 <Tag style={{ marginLeft: 8 }}>{titleCase(e.toStatus)}</Tag>
                             )}
                         </div>
+                        {e.action === 'DUE_DATE_CHANGED' && dueDateDetail(e.data) && (
+                            <Typography.Text type="secondary">{dueDateDetail(e.data)}</Typography.Text>
+                        )}
                         {e.remarks && (
                             <Typography.Paragraph type="secondary" style={{ margin: '2px 0 0', fontStyle: 'italic' }}>
                                 {e.remarks}
                             </Typography.Paragraph>
                         )}
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
                             {formatDateTime(e.createdAt)}
                         </Typography.Text>
                     </div>
