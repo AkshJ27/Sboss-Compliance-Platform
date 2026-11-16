@@ -20,6 +20,7 @@ const LawChangesPage = lazy(() => import('./modules/admin/lawchanges/LawChangesP
 const LibraryPage = lazy(() => import('./modules/admin/library/LibraryPage'));
 const AuditPage = lazy(() => import('./modules/admin/audit/AuditPage'));
 const TasksPage = lazy(() => import('./modules/tasks/TasksPage'));
+const ReportsPage = lazy(() => import('./modules/reports/ReportsPage'));
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="records" element={<RecordsPage />} />
           <Route path="documents" element={<DocumentsPage />} />
+          <Route path="reports" element={<ReportsPage />} />
           <Route element={<RequireRole roles={['ORG_ADMIN', 'MEMBER']} />}>
             <Route path="tasks" element={<TasksPage />} />
           </Route>

@@ -5,6 +5,7 @@ import type { MenuProps } from 'antd';
 import {
     AuditOutlined,
     BellOutlined,
+    BarChartOutlined,
     FileSearchOutlined,
     ToolOutlined,
     CheckSquareOutlined,
@@ -35,6 +36,7 @@ function selectedKey(path: string) {
     if (path.startsWith('/admin/')) return path.split('/').slice(0, 3).join('/');
     if (path.startsWith('/records')) return '/records';
     if (path.startsWith('/documents')) return '/documents';
+    if (path.startsWith('/reports')) return '/reports';
     if (path.startsWith('/tasks')) return '/tasks';
     return '/';
 }
@@ -73,6 +75,7 @@ export function Shell() {
         { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
         { key: '/records', icon: <UnorderedListOutlined />, label: 'Records' },
         { key: '/documents', icon: <FileTextOutlined />, label: 'Documents' },
+        { key: '/reports', icon: <BarChartOutlined />, label: 'Reports' },
         ...(canUseTasks
             ? [
                 {
