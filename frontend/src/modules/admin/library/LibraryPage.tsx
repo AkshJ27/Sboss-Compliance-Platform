@@ -4,6 +4,7 @@ import { useMe } from '../../../core/auth/useMe';
 import { BrowseTab } from './BrowseTab';
 import { ImportTab } from './ImportTab';
 import { InternalTab } from './InternalTab';
+import { LibraryMastersTab } from './LibraryMastersTab';
 
 function ImportGate() {
     const me = useMe();
@@ -45,6 +46,15 @@ export default function LibraryPage() {
                         children: (
                             <ModuleBoundary compact label="This tab">
                                 <InternalTab />
+                            </ModuleBoundary>
+                        ),
+                    },
+                    {
+                        key: 'masters',
+                        label: 'Masters',
+                        children: (
+                            <ModuleBoundary compact label="This tab">
+                                <LibraryMastersTab />
                             </ModuleBoundary>
                         ),
                     },

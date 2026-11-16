@@ -9,12 +9,17 @@ import { parseCsv } from './import.parser';
 import { planImport, commitImport } from './import.service';
 import { notifyLawChange } from '../notifications/law-change.notify';
 import { internalRouter } from './internal.routes';
+import { mastersRouter } from './masters.routes';
 
 export const libraryRouter = Router();
 
 // A company's own compliances: upload, update, add and edit
 libraryRouter.use('/internal', internalRouter);
 
+
+
+// Acts, rules, law categories, statutory authorities, natures and types
+libraryRouter.use('/masters', mastersRouter);
 // Reading: any logged-in user
 libraryRouter.get('/lookups', async (_req, res) => {
     res.json(await lib.lookups());

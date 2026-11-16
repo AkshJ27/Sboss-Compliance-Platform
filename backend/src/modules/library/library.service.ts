@@ -64,6 +64,7 @@ export async function listActs(actor: AuthUser, q: ActQuery) {
             where,
             include: {
                 lawCategory: { select: { id: true, name: true } },
+                statutoryAuthority: { select: { id: true, name: true } },
                 _count: { select: { compliances: true, rules: true } },
             },
             orderBy: { name: 'asc' },
