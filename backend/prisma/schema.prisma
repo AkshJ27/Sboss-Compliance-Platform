@@ -36,6 +36,8 @@ model Organization {
   amendmentDecisions AmendmentDecision[]
   tasks      Task[]
   taskEvents TaskEvent[]
+    acts        Act[]
+  compliances Compliance[]
 
 }
 
@@ -289,10 +291,13 @@ model Act {
 
   lawCategory        LawCategory         @relation(fields: [lawCategoryId], references: [id])
   statutoryAuthority StatutoryAuthority? @relation(fields: [statutoryAuthorityId], references: [id])
+  orgId                String?
+  org                Organization?       @relation(fields: [orgId], references: [id], onDelete: Restrict)
   rules              Rule[]
   compliances        Compliance[]
 
   @@unique([name, jurisdiction, state])
+  @@index([orgId])
   @@index([lawCategoryId])
   @@index([state])
 }
@@ -338,6 +343,13 @@ model Compliance {
   version           Int            @default(1)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  orgId             String?
+  applicability     String?
+  proofOfCompliance String?
+  alertOwnerDays    Int?
+  alertManagerDays  Int?
+  effectiveDate     DateTime?      @db.Date
+  org       Organization?        @relation(fields: [orgId], references: [id], onDelete: Restrict)
   schedules ComplianceSchedule[]
   instances ComplianceInstance[]
   amendmentDecisions AmendmentDecision[]
@@ -348,6 +360,7 @@ model Compliance {
   type      ComplianceType?      @relation(fields: [typeId], references: [id])
   revisions ComplianceRevision[]
 
+    @@index([orgId])
   @@index([actId])
   @@index([ruleId])
   @@index([frequency])

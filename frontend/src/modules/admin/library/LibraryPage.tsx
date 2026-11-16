@@ -3,6 +3,7 @@ import { ModuleBoundary } from '../../../app/ModuleBoundary';
 import { useMe } from '../../../core/auth/useMe';
 import { BrowseTab } from './BrowseTab';
 import { ImportTab } from './ImportTab';
+import { InternalTab } from './InternalTab';
 
 function ImportGate() {
     const me = useMe();
@@ -14,7 +15,7 @@ function ImportGate() {
                 type="info"
                 showIcon
                 message="Importing is limited to the platform administrator"
-                description="The law library is shared by every company, so only the platform administrator can change it. You can browse it on the other tab."
+                description="The statutory library is shared by every company, so only the platform administrator can change it. Your own compliances go on the Internal compliances tab."
             />
         );
     }
@@ -25,7 +26,7 @@ export default function LibraryPage() {
     return (
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Typography.Title level={4} style={{ margin: 0 }}>
-                Law library
+                Compliance master
             </Typography.Title>
             <Tabs
                 items={[
@@ -39,8 +40,17 @@ export default function LibraryPage() {
                         ),
                     },
                     {
+                        key: 'internal',
+                        label: 'Internal compliances',
+                        children: (
+                            <ModuleBoundary compact label="This tab">
+                                <InternalTab />
+                            </ModuleBoundary>
+                        ),
+                    },
+                    {
                         key: 'import',
-                        label: 'Import',
+                        label: 'Import statutory library',
                         children: (
                             <ModuleBoundary compact label="This tab">
                                 <ImportGate />

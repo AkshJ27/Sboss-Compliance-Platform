@@ -63,7 +63,8 @@ export async function activate(actor: AuthUser, input: ActivateInput, dryRun: bo
     if (input.complianceIds.length) or.push({ id: { in: input.complianceIds } });
 
     const found = await prisma.compliance.findMany({
-        where: { isActive: true, act: { isActive: true }, OR: or },
+        // The shared library and the company's own internal compliances, never another company's
+        where: { isActive: true, act: { isActive: true }, AND: [{ OR: or }, { OR: [{ orgId: null }, { orgId }] }] },
         select: {
             id: true,
             code: true,

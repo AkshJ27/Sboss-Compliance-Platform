@@ -47,9 +47,9 @@ export async function planImport(rows: ParsedRow[]) {
         prisma.statutoryAuthority.findMany(named),
         prisma.complianceNature.findMany(named),
         prisma.complianceType.findMany(named),
-        prisma.act.findMany({ select: { id: true, name: true, jurisdiction: true, state: true } }),
+        prisma.act.findMany({ where: { orgId: null }, select: { id: true, name: true, jurisdiction: true, state: true } }),
         prisma.rule.findMany({ select: { id: true, actId: true, name: true } }),
-        prisma.compliance.findMany({ where: { code: { in: rows.map((r) => r.data.code) } } }),
+        prisma.compliance.findMany({ where: { code: { in: rows.map((r) => r.data.code) }, orgId: null } }),
     ]);
 
     const categories = lookup(cats);

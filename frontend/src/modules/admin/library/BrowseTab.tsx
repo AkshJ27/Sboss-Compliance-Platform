@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '../../../core/api/client';
 import { formatDate, titleCase } from '../../../core/format';
 import { RISK_COLOR, useStates } from '../api';
+import { EditInternalModal } from './InternalForm';
 import type { Level } from '../api';
 
 type Named = { id: string; name: string };
@@ -29,6 +30,12 @@ type LibCompliance = {
     attachment: string;
     isActive: boolean;
     version: number;
+    orgId: string | null; // set for the company's own internal compliances
+    applicability: string | null;
+    proofOfCompliance: string | null;
+    alertOwnerDays: number | null;
+    alertManagerDays: number | null;
+    effectiveDate: string | null;
     act: { id: string; name: string; state: string | null; jurisdiction: string; lawCategory: Named };
     nature: Named | null;
     type: Named | null;
@@ -49,15 +56,24 @@ type LibAct = {
 type ActPage = { items: LibAct[]; total: number };
 
 const FREQUENCIES = ['ONE_TIME', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'ANNUAL', 'EVENT_BASED'];
+const PERIOD_MONTHS: Record<string, number> = { MONTHLY: 1, QUARTERLY: 3, HALF_YEARLY: 6, ANNUAL: 12 };
+
+const TypeTag = ({ orgId }: { orgId: string | null }) =>
+    orgId ? <Tag color="geekblue">Internal</Tag> : <Tag>Statutory</Tag>;
 
 function dueRule(c: Pick<LibCompliance, 'frequency' | 'dueDay' | 'dueMonthOffset' | 'event' | 'dueDaysAfterEvent'>): string {
     if (c.frequency === 'EVENT_BASED') return `${c.dueDaysAfterEvent ?? '?'} days after: ${c.event ?? '?'}`;
     if (c.frequency === 'ONE_TIME') return c.dueDay ? `Day ${c.dueDay}` : 'On the start date';
     if (c.dueDay == null) return '';
+    const months = (n: number) => `${n} month${n === 1 ? '' : 's'}`;
     const when =
         c.dueMonthOffset === 0
             ? 'in the last month of the period'
-            : `${c.dueMonthOffset} month${c.dueMonthOffset === 1 ? '' : 's'} after the period`;
+            : c.dueMonthOffset === 1 - (PERIOD_MONTHS[c.frequency] ?? 1)
+                ? 'in the first month of the period'
+                : c.dueMonthOffset < 0
+                    ? `${months(-c.dueMonthOffset)} before the last month of the period`
+                    : `${months(c.dueMonthOffset)} after the period`;
     return `Day ${c.dueDay}, ${when}`;
 }
 
@@ -76,6 +92,7 @@ function describeChanges(changes: unknown): string {
 }
 
 function ComplianceDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+    const [editing, setEditing] = useState(false);
     const q = useQuery({
         queryKey: ['library', 'compliance', id],
         queryFn: ({ signal }) => api<ComplianceDetail>(`/library/compliances/${id}`, { signal }),
@@ -83,7 +100,20 @@ function ComplianceDrawer({ id, onClose }: { id: string; onClose: () => void }) 
     const c = q.data;
 
     return (
-        <Drawer open width="min(640px, 100vw)" onClose={onClose} title={c ? c.title : 'Compliance'}>
+        <Drawer
+            open
+            width="min(640px, 100vw)"
+            onClose={onClose}
+            title={c ? c.title : 'Compliance'}
+            extra={
+                c?.orgId ? (
+                    <Button type="primary" onClick={() => setEditing(true)}>
+                        Modify
+                    </Button>
+                ) : null
+            }
+        >
+            {editing && c && <EditInternalModal item={c} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />}
             {q.isError && !c && (
                 <Alert
                     type="error"
@@ -107,7 +137,7 @@ function ComplianceDrawer({ id, onClose }: { id: string; onClose: () => void }) 
                         column={2}
                         items={[
                             { key: 'code', label: 'Code', children: c.code },
-                            { key: 'version', label: 'Version', children: c.version },
+                            { key: 'type', label: 'Type', children: <TypeTag orgId={c.orgId} /> },
                             { key: 'act', label: 'Act', span: 2, children: c.act.state ? `${c.act.name} (${c.act.state})` : c.act.name },
                             { key: 'cat', label: 'Law category', children: c.act.lawCategory.name },
                             { key: 'form', label: 'Form', children: c.form ?? '-' },
@@ -119,6 +149,16 @@ function ComplianceDrawer({ id, onClose }: { id: string; onClose: () => void }) 
                             { key: 'proof', label: 'Proof', children: titleCase(c.attachment) },
                             { key: 'ref', label: 'Reference', children: c.reference ?? '-' },
                             { key: 'penalty', label: 'Penalty', span: 2, children: c.penalty ?? '-' },
+                            ...(c.orgId
+                                ? [
+                                    { key: 'proofOf', label: 'Proof of compliance', span: 2, children: c.proofOfCompliance ?? '-' },
+                                    { key: 'appl', label: 'Applicability', span: 2, children: c.applicability ?? '-' },
+                                    { key: 'aOwner', label: 'Owner alert days', children: c.alertOwnerDays ?? '-' },
+                                    { key: 'aMgr', label: 'Manager alert days', children: c.alertManagerDays ?? '-' },
+                                    { key: 'eff', label: 'Effective date', children: c.effectiveDate ? formatDate(c.effectiveDate) : '-' },
+                                    { key: 'status', label: 'Status', children: c.isActive ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag> },
+                                ]
+                                : [{ key: 'version', label: 'Version', span: 2, children: c.version }]),
                         ]}
                     />
                     <div>
@@ -159,6 +199,8 @@ function CompliancesView() {
     const [frequency, setFrequency] = useState<string | undefined>();
     const [risk, setRisk] = useState<string | undefined>();
     const [showInactive, setShowInactive] = useState(false);
+    const [type, setType] = useState<string | undefined>();
+    const [mapping, setMapping] = useState<'ALL' | 'MAPPED' | 'UNMAPPED'>('ALL');
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(25);
     const [open, setOpen] = useState<string | null>(null);
@@ -170,6 +212,8 @@ function CompliancesView() {
     if (frequency) params.set('frequency', frequency);
     if (risk) params.set('risk', risk);
     if (showInactive) params.set('includeInactive', 'true');
+    if (type) params.set('type', type);
+    if (mapping !== 'ALL') params.set('mapping', mapping);
     const qs = params.toString();
 
     const q = useQuery({
@@ -208,7 +252,7 @@ function CompliancesView() {
             width: 90,
             render: (_, r) => <Tag color={RISK_COLOR[r.risk]}>{titleCase(r.risk)}</Tag>,
         },
-        { title: 'Version', dataIndex: 'version', key: 'v', width: 80 },
+        { title: 'Type', key: 't', width: 100, render: (_, r) => <TypeTag orgId={r.orgId} /> },
         {
             title: 'Status',
             key: 's',
@@ -219,7 +263,35 @@ function CompliancesView() {
 
     return (
         <Space direction="vertical" style={{ width: '100%' }}>
+            <Segmented
+                value={mapping}
+                options={[
+                    { value: 'ALL', label: 'All' },
+                    { value: 'MAPPED', label: 'Mapped' },
+                    { value: 'UNMAPPED', label: 'Unmapped' },
+                ]}
+                onChange={(v) => {
+                    setMapping(v as 'ALL' | 'MAPPED' | 'UNMAPPED');
+                    reset();
+                }}
+            />
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Mapped: scheduled at one or more of your locations. Unmapped: not scheduled anywhere yet.
+            </Typography.Text>
             <Space wrap>
+                <Select
+                    allowClear
+                    placeholder="Type"
+                    style={{ width: 130 }}
+                    options={[
+                        { value: 'STATUTORY', label: 'Statutory' },
+                        { value: 'INTERNAL', label: 'Internal' },
+                    ]}
+                    onChange={(v: string | undefined) => {
+                        setType(v);
+                        reset();
+                    }}
+                />
                 <Input.Search
                     allowClear
                     maxLength={100}

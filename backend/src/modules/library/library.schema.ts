@@ -54,6 +54,10 @@ export const complianceListQuerySchema = z.object({
     risk: z.enum(RISKS).optional(),
     search: z.string().trim().max(100).optional(),
     includeInactive: boolQuery,
+    // STATUTORY: the shared library. INTERNAL: the company's own compliances.
+    type: z.enum(['STATUTORY', 'INTERNAL']).optional(),
+    // MAPPED: scheduled at one or more of the company's locations. UNMAPPED: not scheduled anywhere.
+    mapping: z.enum(['MAPPED', 'UNMAPPED']).optional(),
     ...paging,
 });
 

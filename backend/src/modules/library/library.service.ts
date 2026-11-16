@@ -20,6 +20,12 @@ const complianceInclude = {
     type: { select: { id: true, name: true } },
 } as const;
 
+// The shared library plus the company's own internal compliances. Never another company's.
+export const visibleCompliances = (orgId: string): Prisma.ComplianceWhereInput => ({
+    OR: [{ orgId: null }, { orgId }],
+});
+export const visibleActs = (orgId: string): Prisma.ActWhereInput => ({ OR: [{ orgId: null }, { orgId }] });
+
 const insensitive = Prisma.QueryMode.insensitive;
 
 export async function lookups() {
@@ -43,8 +49,9 @@ type ActQuery = {
     limit: number;
 };
 
-export async function listActs(q: ActQuery) {
+export async function listActs(actor: AuthUser, q: ActQuery) {
     const where: Prisma.ActWhereInput = {
+        AND: [visibleActs(actor.orgId)],
         ...(q.includeInactive ? {} : { isActive: true }),
         ...(q.lawCategoryId ? { lawCategoryId: q.lawCategoryId } : {}),
         ...(q.jurisdiction ? { jurisdiction: q.jurisdiction } : {}),
@@ -67,8 +74,11 @@ export async function listActs(q: ActQuery) {
     return { items, total, page: q.page, limit: q.limit };
 }
 
-export const listRules = (actId: string) =>
-    prisma.rule.findMany({ where: { actId, isActive: true }, orderBy: { name: 'asc' } });
+export const listRules = (actor: AuthUser, actId: string) =>
+    prisma.rule.findMany({
+        where: { actId, isActive: true, act: visibleActs(actor.orgId) },
+        orderBy: { name: 'asc' },
+    });
 
 type ComplianceQuery = {
     actId?: string;
@@ -80,17 +90,27 @@ type ComplianceQuery = {
     risk?: Prisma.ComplianceWhereInput['risk'];
     search?: string;
     includeInactive: boolean;
+    type?: 'STATUTORY' | 'INTERNAL';
+    mapping?: 'MAPPED' | 'UNMAPPED';
     page: number;
     limit: number;
 };
 
-export async function listCompliances(q: ComplianceQuery) {
+export async function listCompliances(actor: AuthUser, q: ComplianceQuery) {
+    const { orgId } = actor;
+    const mapped: Prisma.ComplianceScheduleListRelationFilter = { some: { orgId, isActive: true } };
     const actFilter: Prisma.ActWhereInput = {
         ...(q.lawCategoryId ? { lawCategoryId: q.lawCategoryId } : {}),
         ...(q.jurisdiction ? { jurisdiction: q.jurisdiction } : {}),
         ...(q.state ? { state: q.state } : {}),
     };
     const where: Prisma.ComplianceWhereInput = {
+        AND: [
+            visibleCompliances(orgId),
+            ...(q.type === 'STATUTORY' ? [{ orgId: null }] : q.type === 'INTERNAL' ? [{ orgId }] : []),
+            ...(q.mapping === 'MAPPED' ? [{ schedules: mapped }] : []),
+            ...(q.mapping === 'UNMAPPED' ? [{ schedules: { none: { orgId, isActive: true } } }] : []),
+        ],
         ...(q.includeInactive ? {} : { isActive: true }),
         ...(q.actId ? { actId: q.actId } : {}),
         ...(q.natureId ? { natureId: q.natureId } : {}),
@@ -120,9 +140,9 @@ export async function listCompliances(q: ComplianceQuery) {
     return { items, total, page: q.page, limit: q.limit };
 }
 
-export async function getCompliance(id: string) {
-    const row = await prisma.compliance.findUnique({
-        where: { id },
+export async function getCompliance(actor: AuthUser, id: string) {
+    const row = await prisma.compliance.findFirst({
+        where: { id, ...visibleCompliances(actor.orgId) },
         include: { ...complianceInclude, revisions: { orderBy: { version: 'desc' }, take: 50 } },
     });
     if (!row) throw new HttpError(404, 'Compliance not found');
@@ -135,7 +155,8 @@ export async function updateCompliance(
     input: Prisma.ComplianceUncheckedUpdateInput,
 ) {
     return prisma.$transaction(async (tx) => {
-        const before = await tx.compliance.findUnique({ where: { id } });
+        // The shared library only. A company's internal compliances are changed by that company.
+        const before = await tx.compliance.findFirst({ where: { id, orgId: null } });
         if (!before) throw new HttpError(404, 'Compliance not found');
 
         const merged = { ...before, ...input } as typeof before;

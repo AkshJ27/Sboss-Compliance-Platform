@@ -114,7 +114,7 @@ export function Shell() {
                             ),
                         },
                         { key: '/admin/schedules', icon: <CalendarOutlined />, label: 'Schedules' },
-                        { key: '/admin/library', icon: <BookOutlined />, label: 'Law library' },
+                        { key: '/admin/library', icon: <BookOutlined />, label: 'Compliance master' },
                         { key: '/admin/audit', icon: <AuditOutlined />, label: 'Audit log' },
                     ],
                 },

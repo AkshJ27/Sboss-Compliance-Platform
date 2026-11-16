@@ -8,8 +8,12 @@ import * as lib from './library.service';
 import { parseCsv } from './import.parser';
 import { planImport, commitImport } from './import.service';
 import { notifyLawChange } from '../notifications/law-change.notify';
+import { internalRouter } from './internal.routes';
 
 export const libraryRouter = Router();
+
+// A company's own compliances: upload, update, add and edit
+libraryRouter.use('/internal', internalRouter);
 
 // Reading: any logged-in user
 libraryRouter.get('/lookups', async (_req, res) => {
@@ -17,21 +21,21 @@ libraryRouter.get('/lookups', async (_req, res) => {
 });
 
 libraryRouter.get('/acts', async (req, res) => {
-    res.json(await lib.listActs(s.actListQuerySchema.parse(req.query)));
+    res.json(await lib.listActs(getUser(req), s.actListQuerySchema.parse(req.query)));
 });
 
 libraryRouter.get('/acts/:id/rules', async (req, res) => {
     const { id } = s.idParamSchema.parse(req.params);
-    res.json(await lib.listRules(id));
+    res.json(await lib.listRules(getUser(req), id));
 });
 
 libraryRouter.get('/compliances', async (req, res) => {
-    res.json(await lib.listCompliances(s.complianceListQuerySchema.parse(req.query)));
+    res.json(await lib.listCompliances(getUser(req), s.complianceListQuerySchema.parse(req.query)));
 });
 
 libraryRouter.get('/compliances/:id', async (req, res) => {
     const { id } = s.idParamSchema.parse(req.params);
-    res.json(await lib.getCompliance(id));
+    res.json(await lib.getCompliance(getUser(req), id));
 });
 
 // Writing: platform admin only

@@ -52,7 +52,7 @@ async function loadLookups(db: Db, orgId: string, parsed: ParsedFile): Promise<L
     const compliances = new Map<string, ComplianceRef>();
     for (const part of chunks([...new Set(rows.map((r) => r.code))], 5000)) {
         const found = await db.compliance.findMany({
-            where: { code: { in: part } },
+            where: { code: { in: part }, OR: [{ orgId: null }, { orgId }] },
             select: {
                 id: true,
                 code: true,
