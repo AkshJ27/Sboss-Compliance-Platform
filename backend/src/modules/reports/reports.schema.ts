@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { dateOnlyField } from '../../lib/validators';
 import { INSTANCE_STATUSES } from '../compliance/compliance.schema';
 import { GROUP_BY } from './summary.calc';
+import { SORT_KEYS, columnFiltersField, selectedIdsField } from '../compliance/column-filters';
 import { DASHBOARD_STATUSES, dimensionShape, list } from '../compliance/filters';
 
 // The same filters as the record list, plus the file format
@@ -14,8 +15,11 @@ export const exportQuerySchema = z
         dueTo: dateOnlyField.optional(),
         overdue: z.enum(['true']).optional(),
         search: z.string().trim().max(100).optional(),
+        sort: z.enum(SORT_KEYS).optional(),
+        cf: columnFiltersField,
+        ids: selectedIdsField,
         order: z.enum(['asc', 'desc']).default('asc'),
-        format: z.enum(['csv', 'xlsx']).default('csv'),
+        format: z.enum(['csv', 'xlsx', 'pdf']).default('csv'),
     })
     .refine((v) => !v.dueFrom || !v.dueTo || v.dueTo >= v.dueFrom, {
         message: 'dueTo must be on or after dueFrom',

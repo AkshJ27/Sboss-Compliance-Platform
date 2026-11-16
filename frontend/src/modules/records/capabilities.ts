@@ -33,5 +33,7 @@ export function capabilities(r: RecordDetail, user: SessionUser) {
         reviewStage,
         canReassign: user.role === 'ORG_ADMIN' && REASSIGNABLE.includes(r.status),
         canRemoveProof: writer && open && (isOwner || user.role === 'ORG_ADMIN'),
+        // Before the owner submits, an admin or the item's manager can move the due date
+        canChangeDue: writer && open && (user.role === 'ORG_ADMIN' || user.id === r.managerId),
     };
 }

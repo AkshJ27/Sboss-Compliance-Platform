@@ -9,6 +9,8 @@ import { dashboardStatus, type DashboardStatus } from '../compliance/status';
 import { toCsv, type Column } from './export.format';
 import { toXlsx } from './export.xlsx';
 import type { ExportQuery } from './reports.schema';
+import { orderFor } from '../compliance/column-filters';
+import { MAX_PDF_RECORDS, recordsPdf } from './records.pdf';
 
 const MAX_EXPORT_ROWS = 20_000;
 
@@ -106,40 +108,47 @@ function columns(today: string): Column<Row>[] {
     ];
 }
 
+const CONTENT_TYPE = {
+    csv: 'text/csv; charset=utf-8',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    pdf: 'application/pdf',
+} as const;
+
 export async function exportInstances(actor: AuthUser, q: ExportQuery) {
     const where = buildListWhere(actor, q);
+    const orderBy = orderFor(q.sort, q.order);
+    const isPdf = q.format === 'pdf';
+    const limit = isPdf ? MAX_PDF_RECORDS : MAX_EXPORT_ROWS;
 
     const total = await prisma.complianceInstance.count({ where });
-    if (total > MAX_EXPORT_ROWS) {
+    if (total > limit) {
         throw new HttpError(
             400,
-            `This export has ${total} rows, more than the limit of ${MAX_EXPORT_ROWS}. Narrow the filters.`,
+            isPdf
+                ? `This PDF would have ${total} records, more than the limit of ${limit}. Tick the rows you need, or narrow the filters.`
+                : `This export has ${total} rows, more than the limit of ${limit}. Narrow the filters.`,
         );
     }
 
-    const rows = await prisma.complianceInstance.findMany({
-        where,
-        select,
-        orderBy: [{ dueDate: q.order }, { id: 'asc' }],
-        take: MAX_EXPORT_ROWS,
-    });
-
     const today = todayInIndia();
-    const cols = columns(today);
-    const isCsv = q.format === 'csv';
-    const body = isCsv ? Buffer.from(toCsv(rows, cols), 'utf8') : await toXlsx(rows, cols, 'Compliance');
+    let body: Buffer;
+    if (isPdf) {
+        body = await recordsPdf(actor.orgId, where, orderBy, today);
+    } else {
+        const rows = await prisma.complianceInstance.findMany({ where, select, orderBy, take: MAX_EXPORT_ROWS });
+        const cols = columns(today);
+        body = q.format === 'csv' ? Buffer.from(toCsv(rows, cols), 'utf8') : await toXlsx(rows, cols, 'Compliance');
+    }
 
     await recordAudit(prisma, actor, 'REPORT_EXPORTED', 'Report', 'instances', {
         format: q.format,
-        rows: rows.length,
+        rows: total,
         filters: JSON.parse(JSON.stringify(q)),
     } as Prisma.InputJsonValue);
 
     return {
         body,
         fileName: `compliance-${today}.${q.format}`,
-        contentType: isCsv
-            ? 'text/csv; charset=utf-8'
-            : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        contentType: CONTENT_TYPE[q.format],
     };
 }

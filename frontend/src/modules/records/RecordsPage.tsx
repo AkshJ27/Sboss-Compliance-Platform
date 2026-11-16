@@ -1,9 +1,11 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import type { Key } from 'react';
 import {
     Alert, Badge, Button, DatePicker, Dropdown, Input, Segmented, Space, Table, Tag, Typography, message,
 } from 'antd';
-import type { TableProps } from 'antd';
-import { DownloadOutlined } from '@ant-design/icons';
+import type { TableColumnType, TableProps } from 'antd';
+import type { SortOrder } from 'antd/es/table/interface';
+import { DownloadOutlined, FilterFilled } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -13,6 +15,8 @@ import { DIMENSIONS, STATUS_META, STATUS_ORDER, dimsToParams, parseDims } from '
 import type { DashStatus, Dims } from '../../core/filters';
 import { formatDate, titleCase } from '../../core/format';
 import { FilterPanel } from '../../shared/FilterPanel';
+import { ColumnRuleFilter, parseColumnFilters } from './ColumnRuleFilter';
+import type { ColumnFilter, FilterKey } from './ColumnRuleFilter';
 
 const RecordDrawer = lazy(() => import('./RecordDrawer'));
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,6 +34,9 @@ type Row = {
         frequency: string;
         act: { name: string; state: string | null };
     };
+    entity: { name: string };
+    vertical: { name: string } | null;
+    department: { name: string } | null;
     location: { name: string; state: string };
     owner: { name: string };
     manager: { name: string };
@@ -39,11 +46,16 @@ type Page = { items: Row[]; total: number; page: number; limit: number };
 
 const RISK_COLOR = { HIGH: 'red', MEDIUM: 'orange', LOW: 'green' } as const;
 const PAGE_SIZES = [10, 25, 50, 100];
+const SORT_KEYS = ['dueDate', 'owner', 'manager', 'entity', 'vertical', 'department', 'location', 'act', 'title', 'frequency', 'risk'] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+const MAX_SELECTED = 100;
+const isSortKey = (v: string | null): v is SortKey => SORT_KEYS.some((k) => k === v);
 
 export default function RecordsPage() {
     const [sp, setSp] = useSearchParams();
     const [messageApi, contextHolder] = message.useMessage();
     const [exporting, setExporting] = useState(false);
+    const [selected, setSelected] = useState<Key[]>([]);
     const spKey = sp.toString();
 
     const dims = useMemo(() => parseDims(new URLSearchParams(spKey)), [spKey]);
@@ -53,6 +65,10 @@ export default function RecordsPage() {
     const dueTo = sp.get('dueTo') ?? '';
     const search = sp.get('search') ?? '';
     const order = sp.get('order') === 'desc' ? 'desc' : 'asc';
+    const rawSort = sp.get('sort');
+    const sort: SortKey = isSortKey(rawSort) ? rawSort : 'dueDate';
+    const rawCf = sp.get('cf');
+    const columnFilters = useMemo(() => parseColumnFilters(rawCf), [rawCf]);
     const page = Math.max(1, Number(sp.get('page')) || 1);
     const requested = Number(sp.get('limit'));
     const limit = PAGE_SIZES.includes(requested) ? requested : 25;
@@ -68,9 +84,17 @@ export default function RecordsPage() {
             p.set('dueTo', dueTo);
         }
         if (search) p.set('search', search);
+        if (columnFilters.length) p.set('cf', JSON.stringify(columnFilters));
+        if (sort !== 'dueDate') p.set('sort', sort);
         p.set('order', order);
         return p;
-    }, [dims, status, dueFrom, dueTo, search, order]);
+    }, [dims, status, dueFrom, dueTo, search, columnFilters, sort, order]);
+    const filterKey = filterParams.toString();
+
+    // Ticked rows belong to one set of filters. When the filters change, start again.
+    useEffect(() => {
+        setSelected([]);
+    }, [filterKey]);
 
     const listQs = useMemo(() => {
         const p = new URLSearchParams(filterParams);
@@ -119,25 +143,65 @@ export default function RecordsPage() {
         [spKey, setSp],
     );
 
+    const setColumnFilter = (col: FilterKey, f: ColumnFilter | undefined) => {
+        const next = [...columnFilters.filter((x) => x.col !== col), ...(f ? [f] : [])];
+        patch({ cf: next.length ? JSON.stringify(next) : null });
+    };
+
     const onTableChange: TableProps<Row>['onChange'] = (pagination, _filters, sorter) => {
         const s = Array.isArray(sorter) ? sorter[0] : sorter;
         const next = new URLSearchParams(spKey);
         next.set('page', String(pagination.current ?? 1));
         next.set('limit', String(pagination.pageSize ?? 25));
-        if (s?.order === 'descend') next.set('order', 'desc');
-        else next.delete('order');
+        const key = typeof s?.columnKey === 'string' && isSortKey(s.columnKey) ? s.columnKey : null;
+        if (key && s?.order) {
+            if (key === 'dueDate') next.delete('sort');
+            else next.set('sort', key);
+            if (s.order === 'descend') next.set('order', 'desc');
+            else next.delete('order');
+        } else {
+            next.delete('sort');
+            next.delete('order');
+        }
         setSp(next, { replace: true });
     };
 
     const doExport = async (format: string) => {
         setExporting(true);
         try {
-            await apiDownload(`/reports/instances?${filterParams.toString()}&format=${format}`);
+            const p = new URLSearchParams(filterParams);
+            if (selected.length) p.set('ids', selected.join(','));
+            p.set('format', format);
+            await apiDownload(`/reports/instances?${p.toString()}`);
         } catch (e) {
             messageApi.error(e instanceof Error ? e.message : 'The export failed');
         } finally {
             setExporting(false);
         }
+    };
+
+    const sortable = (key: SortKey): Partial<TableColumnType<Row>> => ({
+        key,
+        sorter: true,
+        sortDirections: ['ascend', 'descend'] as SortOrder[],
+        sortOrder: sort === key ? (order === 'desc' ? 'descend' : 'ascend') : null,
+    });
+
+    const filterable = (col: FilterKey): Partial<TableColumnType<Row>> => {
+        const value = columnFilters.find((f) => f.col === col);
+        return {
+            filtered: !!value,
+            filterIcon: (on: boolean) => <FilterFilled style={{ color: on ? '#1677ff' : undefined }} />,
+            filterDropdown: ({ close }) => (
+                <ColumnRuleFilter
+                    key={JSON.stringify(value ?? null)}
+                    col={col}
+                    value={value}
+                    onApply={(f) => setColumnFilter(col, f)}
+                    close={close}
+                />
+            ),
+        };
     };
 
     const columns: TableProps<Row>['columns'] = [
@@ -149,10 +213,32 @@ export default function RecordsPage() {
                 <Badge color={STATUS_META[r.dashboardStatus].color} text={STATUS_META[r.dashboardStatus].label} />
             ),
         },
+        { title: 'Owner', width: 140, ...sortable('owner'), ...filterable('owner'), render: (_, r) => r.owner.name },
+        { title: 'Manager', width: 140, ...sortable('manager'), ...filterable('manager'), render: (_, r) => r.manager.name },
+        { title: 'Entity', width: 190, ellipsis: true, ...sortable('entity'), ...filterable('entity'), render: (_, r) => r.entity.name },
+        { title: 'Vertical', width: 120, ...sortable('vertical'), ...filterable('vertical'), render: (_, r) => r.vertical?.name ?? '' },
+        { title: 'Dept', width: 140, ...sortable('department'), ...filterable('department'), render: (_, r) => r.department?.name ?? '' },
+        {
+            title: 'Location',
+            width: 170,
+            ...sortable('location'),
+            ...filterable('location'),
+            render: (_, r) => `${r.location.name}, ${r.location.state}`,
+        },
+        {
+            title: 'Act',
+            width: 240,
+            ellipsis: true,
+            ...sortable('act'),
+            ...filterable('act'),
+            render: (_, r) =>
+                r.compliance.act.state ? `${r.compliance.act.name} (${r.compliance.act.state})` : r.compliance.act.name,
+        },
         {
             title: 'Compliance',
-            key: 'title',
             width: 320,
+            ...sortable('title'),
+            ...filterable('title'),
             render: (_, r) => (
                 <div>
                     <div>{r.compliance.title}</div>
@@ -162,25 +248,7 @@ export default function RecordsPage() {
                 </div>
             ),
         },
-        {
-            title: 'Act',
-            key: 'act',
-            width: 240,
-            render: (_, r) =>
-                r.compliance.act.state ? `${r.compliance.act.name} (${r.compliance.act.state})` : r.compliance.act.name,
-        },
-        { title: 'Location', key: 'location', width: 170, render: (_, r) => `${r.location.name}, ${r.location.state}` },
-        { title: 'Owner', key: 'owner', width: 140, render: (_, r) => r.owner.name },
-        { title: 'Manager', key: 'manager', width: 140, render: (_, r) => r.manager.name },
-        {
-            title: 'Due date',
-            key: 'due',
-            width: 120,
-            sorter: true,
-            sortDirections: ['ascend', 'descend'],
-            sortOrder: order === 'desc' ? 'descend' : 'ascend',
-            render: (_, r) => formatDate(r.dueDate),
-        },
+        { title: 'Due date', width: 125, ...sortable('dueDate'), render: (_, r) => formatDate(r.dueDate) },
         {
             title: 'Period',
             key: 'period',
@@ -190,13 +258,13 @@ export default function RecordsPage() {
                     ? `Event on ${formatDate(r.periodStart)}`
                     : `${formatDate(r.periodStart)} to ${formatDate(r.periodEnd)}`,
         },
+        { title: 'Periodicity', width: 125, ...sortable('frequency'), render: (_, r) => titleCase(r.compliance.frequency) },
         {
             title: 'Risk',
-            key: 'risk',
-            width: 90,
+            width: 95,
+            ...sortable('risk'),
             render: (_, r) => <Tag color={RISK_COLOR[r.compliance.risk]}>{titleCase(r.compliance.risk)}</Tag>,
         },
-        { title: 'Periodicity', key: 'freq', width: 120, render: (_, r) => titleCase(r.compliance.frequency) },
         { title: 'Proof', key: 'proof', width: 70, render: (_, r) => r._count.documents },
     ];
 
@@ -243,17 +311,34 @@ export default function RecordsPage() {
                 <Dropdown
                     menu={{
                         items: [
-                            { key: 'csv', label: 'CSV file' },
                             { key: 'xlsx', label: 'Excel file' },
+                            { key: 'csv', label: 'CSV file' },
+                            { key: 'pdf', label: 'PDF (one sheet per record, up to 200)' },
                         ],
                         onClick: ({ key }) => void doExport(key),
                     }}
                 >
                     <Button icon={<DownloadOutlined />} loading={exporting}>
-                        Export
+                        {selected.length ? `Export ${selected.length} selected` : 'Export'}
                     </Button>
                 </Dropdown>
+                {columnFilters.length > 0 && (
+                    <Button type="link" onClick={() => patch({ cf: null })}>
+                        Clear column filters ({columnFilters.length})
+                    </Button>
+                )}
             </Space>
+
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {selected.length
+                    ? `${selected.length} row(s) ticked. Exports include only these. `
+                    : 'To export every record that matches the filters, leave all the boxes unticked. '}
+                {selected.length > 0 && (
+                    <Button type="link" size="small" style={{ padding: 0 }} onClick={() => setSelected([])}>
+                        Clear the ticks
+                    </Button>
+                )}
+            </Typography.Text>
 
             {q.isError && (
                 <Alert
@@ -275,9 +360,28 @@ export default function RecordsPage() {
                 columns={columns}
                 dataSource={q.data?.items ?? []}
                 loading={q.isFetching}
-                scroll={{ x: 1500 }}
+                scroll={{ x: 2100 }}
                 onChange={onTableChange}
-                onRow={(r) => ({ onClick: () => setOpen(r.id), style: { cursor: 'pointer' } })}
+                rowSelection={{
+                    selectedRowKeys: selected,
+                    preserveSelectedRowKeys: true,
+                    onChange: (keys) => {
+                        if (keys.length > MAX_SELECTED) {
+                            messageApi.warning(`You can tick up to ${MAX_SELECTED} rows. To export more, untick all and use the filters.`);
+                            setSelected(keys.slice(0, MAX_SELECTED));
+                        } else {
+                            setSelected(keys);
+                        }
+                    },
+                }}
+                onRow={(r) => ({
+                    // A click on the tick box only ticks the row; anywhere else opens it
+                    onClick: (e) => {
+                        if ((e.target as HTMLElement).closest('.ant-table-selection-column')) return;
+                        setOpen(r.id);
+                    },
+                    style: { cursor: 'pointer' },
+                })}
                 pagination={{
                     current: page,
                     pageSize: limit,

@@ -62,3 +62,14 @@ export const assigneesSchema = z
         'Nothing to change',
     );
 export type AssigneesInput = z.infer<typeof assigneesSchema>;
+
+// Moving the due date of an item nobody has submitted yet. Files are uploaded first as
+// separate documents and listed here, so they stay apart from the item's proof.
+export const dueDateSchema = z
+    .object({
+        dueDate: dateOnlyField,
+        remarks: text(500).min(3, 'Remarks are required when changing the due date'),
+        documentIds: z.array(uuid).max(10).optional(),
+    })
+    .strict();
+export type DueDateInput = z.infer<typeof dueDateSchema>;

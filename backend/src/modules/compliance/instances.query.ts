@@ -5,11 +5,12 @@ import type { AuthUser } from '../../middleware/auth';
 import { buildInstanceWhere, dashboardStatusWhere, dueRange } from './filters';
 import type { InstanceListQuery } from './filters';
 import { instanceInclude, withOverdue } from './instances.service';
+import { columnFilterWhere, orderFor } from './column-filters';
 
 const insensitive = Prisma.QueryMode.insensitive;
 
-export type ListFilters = Omit<InstanceListQuery, 'order' | 'page' | 'limit'>;
-
+// `ids` limits an export to the rows the user ticked
+export type ListFilters = Omit<InstanceListQuery, 'order' | 'page' | 'limit' | 'sort'> & { ids?: string[] };
 // One definition of "which items match these filters", used by the list and by exports
 export function buildListWhere(actor: AuthUser, q: ListFilters): Prisma.ComplianceInstanceWhereInput {
     const today = todayInIndia();
@@ -21,6 +22,8 @@ export function buildListWhere(actor: AuthUser, q: ListFilters): Prisma.Complian
     if (q.status) and.push({ status: { in: q.status } });
     if (q.dashboardStatus) and.push(dashboardStatusWhere(q.dashboardStatus, today));
     if (q.overdue) and.push(dashboardStatusWhere(['NON_COMPLIANCE'], today));
+    if (q.cf?.length) and.push(columnFilterWhere(q.cf));
+    if (q.ids?.length) and.push({ id: { in: q.ids } });
     if (q.search) {
         and.push({
             compliance: {
@@ -42,7 +45,7 @@ export async function listInstances(actor: AuthUser, q: InstanceListQuery) {
         prisma.complianceInstance.findMany({
             where,
             include: instanceInclude,
-            orderBy: [{ dueDate: q.order }, { id: 'asc' }],
+            orderBy: orderFor(q.sort, q.order),
             skip: (q.page - 1) * q.limit,
             take: q.limit,
         }),

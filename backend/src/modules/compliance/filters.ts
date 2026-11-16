@@ -1,5 +1,5 @@
 import { InstanceStatus, Prisma } from '@prisma/client';
-import { treeifyError, z } from 'zod';
+import { z } from 'zod';
 import { INDIAN_STATES } from '../../lib/india';
 import { parseDateOnly } from '../../lib/dates';
 import { prisma } from '../../lib/prisma';
@@ -9,7 +9,8 @@ import { ATTACHMENTS, FREQUENCIES, RISKS } from '../library/library.schema';
 import { INSTANCE_STATUSES } from './compliance.schema';
 import { visibleTo } from './instances.service';
 import type { DashboardStatus } from './status';
-import { toWritable } from 'node:stream/iter';
+import { SORT_KEYS, columnFiltersField } from './column-filters';
+
 
 export const DASHBOARD_STATUSES = [
     'NON_COMPLIANCE', 'LATE_CLOSURE', 'ON_TIME', 'DUE', 'NOT_APPLICABLE', 'PENDING_APPROVAL',
@@ -90,6 +91,8 @@ export const instanceListSchema = z
         dueTo: dateOnlyField.optional(),
         overdue: z.enum(['true']).optional(),
         search: z.string().trim().max(100).optional(),
+        sort: z.enum(SORT_KEYS).optional(),
+        cf: columnFiltersField,
         order: z.enum(['asc', 'desc']).default('asc'),
         page: z.coerce.number().int().min(1).default(1),
         limit: z.coerce.number().int().min(1).max(100).default(25),

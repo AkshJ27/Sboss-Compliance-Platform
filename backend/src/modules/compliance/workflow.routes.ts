@@ -35,6 +35,11 @@ workflowRouter.patch('/:id/assignees', requireRole('ORG_ADMIN'), async (req, res
     res.json(await wf.reassign(getUser(req), id, s.assigneesSchema.parse(req.body)));
 });
 
+workflowRouter.post('/:id/due-date', actors, async (req, res) => {
+    const { id } = s.idParamSchema.parse(req.params);
+    res.json(await wf.changeDueDate(getUser(req), id, s.dueDateSchema.parse(req.body)));
+});
+
 workflowRouter.get('/:id/history', async (req, res) => {
     const { id } = s.idParamSchema.parse(req.params);
     res.json(await wf.history(getUser(req), id));

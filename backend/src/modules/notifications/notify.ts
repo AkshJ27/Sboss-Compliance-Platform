@@ -42,6 +42,7 @@ export function planWorkflowNotifications(e: WorkflowEvent, actorName: string): 
         if (userId && userId !== e.actorId) out.push({ userId, type, title, body });
     };
 
+
     switch (e.action) {
         case 'SUBMITTED':
             add(
@@ -85,6 +86,12 @@ export function planWorkflowNotifications(e: WorkflowEvent, actorName: string): 
                 add(e.after.approverId, 'ASSIGNED', `You are now the approver: ${label}`, `${actorName} assigned this item to you as approver (due ${due}).`);
             }
             break;
+        case 'DUE_DATE_CHANGED': {
+            const reason = e.remarks ? ` Reason: ${oneLine(e.remarks).slice(0, 500)}` : '';
+            add(e.after.ownerId, 'ASSIGNED', `Due date changed: ${label}`, `${actorName} moved the due date to ${due}.${reason}`);
+            add(e.after.managerId, 'ASSIGNED', `Due date changed: ${label}`, `${actorName} moved the due date to ${due}.${reason}`);
+            break;
+        }
         default: // DRAFT_SAVED tells nobody anything
             break;
     }

@@ -9,6 +9,7 @@ import { RISK_COLOR, STAGE_TEXT, capabilities } from './capabilities';
 import { HistoryTimeline } from './HistoryTimeline';
 import { ProofSection } from './ProofSection';
 import { ReassignModal } from './ReassignModal';
+import { ChangeDueDateModal } from './ChangeDueDateModal';
 import { RecordDetails, SubmissionSummary } from './RecordDetails';
 import { ReviewActions } from './ReviewActions';
 import { SubmitForm } from './SubmitForm';
@@ -19,6 +20,7 @@ export default function RecordDrawer({ id, onClose, onNavigate }: Props) {
     const { user } = useAuth();
     const [notify, holder] = message.useMessage();
     const [reassigning, setReassigning] = useState(false);
+    const [changingDue, setChangingDue] = useState(false);
     const q = useRecord(id);
     const r = q.data;
     const caps = r && user ? capabilities(r, user) : null;
@@ -41,7 +43,10 @@ export default function RecordDrawer({ id, onClose, onNavigate }: Props) {
                 )
             }
             extra={
-                caps?.canReassign ? <Button onClick={() => setReassigning(true)}>Reassign</Button> : null
+                <Space>
+                    {caps?.canChangeDue && <Button onClick={() => setChangingDue(true)}>Change due date</Button>}
+                    {caps?.canReassign && <Button onClick={() => setReassigning(true)}>Reassign</Button>}
+                </Space>
             }
         >
             {holder}
@@ -116,9 +121,18 @@ export default function RecordDrawer({ id, onClose, onNavigate }: Props) {
                             },
                         ]}
                     />
-
                     {caps.canReassign && (
                         <ReassignModal record={r} open={reassigning} onClose={() => setReassigning(false)} notify={notify} />
+                    )}
+                    {changingDue && (
+                        <ChangeDueDateModal
+                            record={r}
+                            onClose={() => setChangingDue(false)}
+                            onDone={() => {
+                                setChangingDue(false);
+                                notify.success('Due date changed');
+                            }}
+                        />
                     )}
                 </Space>
             )}

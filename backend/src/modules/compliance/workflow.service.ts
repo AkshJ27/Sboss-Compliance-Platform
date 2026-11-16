@@ -2,12 +2,12 @@ import { InstanceAction, InstanceStatus, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { HttpError } from '../../lib/errors';
 import { recordAudit } from '../../lib/audit';
-import { parseDateOnly, todayInIndia } from '../../lib/dates';
+import { parseDateOnly, toDateOnly, todayInIndia } from '../../lib/dates';
 import type { AuthUser } from '../../middleware/auth';
 import { getInstance, visibleTo } from './instances.service';
 import { assertAssignees } from './schedules.service';
 import { countProof } from './proof';
-import type { AssigneesInput, DraftInput, SubmitInput } from './workflow.schema';
+import type { AssigneesInput, DraftInput, DueDateInput, SubmitInput } from './workflow.schema';
 import { notifyWorkflow } from '../notifications/notify';
 
 type Tx = Prisma.TransactionClient;
@@ -76,7 +76,8 @@ async function change(
         instanceId: inst.id,
         code: inst.compliance.code,
         title: inst.compliance.title,
-        dueDate: inst.dueDate,
+        // A due date change tells people the new date
+        dueDate: data.dueDate instanceof Date ? data.dueDate : inst.dueDate,
         before: { ownerId: inst.ownerId, managerId: inst.managerId, approverId: inst.approverId },
         after: {
             ownerId: typeof data.ownerId === 'string' ? data.ownerId : inst.ownerId,
@@ -319,6 +320,43 @@ export async function reassign(actor: AuthUser, id: string, input: AssigneesInpu
                     to: { ownerId, managerId, approverId },
                 },
             },
+        );
+    });
+    return getInstance(actor, id);
+}
+
+// An admin, or the item's manager, can move the due date while the owner still has it
+export async function changeDueDate(actor: AuthUser, id: string, input: DueDateInput) {
+    await prisma.$transaction(async (tx) => {
+        const inst = await load(tx, actor, id);
+        if (actor.role !== 'ORG_ADMIN' && actor.id !== inst.managerId) {
+            throw new HttpError(403, "Only an admin or the item's manager can change its due date");
+        }
+        if (inst.status !== 'DUE' && inst.status !== 'RETURNED') {
+            throw new HttpError(409, 'The due date can only be changed before the item is submitted');
+        }
+        const from = toDateOnly(inst.dueDate);
+        if (input.dueDate === from) throw new HttpError(400, 'That is already the due date');
+        if (input.dueDate < toDateOnly(inst.periodStart)) {
+            throw new HttpError(400, 'The due date cannot be before the start of the period');
+        }
+
+        const documentIds = [...new Set(input.documentIds ?? [])];
+        if (documentIds.length) {
+            const found = await tx.document.count({
+                where: { id: { in: documentIds }, orgId: actor.orgId, uploadedById: actor.id, instanceId: null, deletedAt: null },
+            });
+            if (found !== documentIds.length) throw new HttpError(400, 'One of the attached files could not be found');
+        }
+
+        await change(
+            tx,
+            actor,
+            inst,
+            'DUE_DATE_CHANGED',
+            null,
+            { dueDate: parseDateOnly(input.dueDate) },
+            { remarks: input.remarks, data: { from, to: input.dueDate, manual: true, documentIds } },
         );
     });
     return getInstance(actor, id);
