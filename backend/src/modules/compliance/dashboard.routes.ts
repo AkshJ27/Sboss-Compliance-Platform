@@ -1,10 +1,15 @@
 import { Router } from 'express';
 import { getUser } from '../../middleware/auth';
-import { dashboardQuerySchema, dimensionSchema } from './filters';
+import { dashboardQuerySchema, daysQuerySchema, dimensionSchema } from './filters';
 import * as dash from './dashboard.service';
 
 // Everyone logged in can read the dashboard. What they see depends on their visibility.
 export const dashboardRouter = Router();
+
+
+dashboardRouter.get('/days', async (req, res) => {
+    res.json(await dash.days(getUser(req), daysQuerySchema.parse(req.query)));
+});
 
 dashboardRouter.get('/summary', async (req, res) => {
     res.json(await dash.summary(getUser(req), dashboardQuerySchema.parse(req.query)));

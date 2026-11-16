@@ -7,6 +7,7 @@ import { titleCase } from '../../core/format';
 import { useRecord } from './api';
 import { RISK_COLOR, STAGE_TEXT, capabilities } from './capabilities';
 import { HistoryTimeline } from './HistoryTimeline';
+import { ScheduleHistory } from './ScheduleHistory';
 import { ProofSection } from './ProofSection';
 import { ReassignModal } from './ReassignModal';
 import { ChangeDueDateModal } from './ChangeDueDateModal';
@@ -116,6 +117,15 @@ export default function RecordDrawer({ id, onClose, onNavigate }: Props) {
                                 children: (
                                     <ModuleBoundary compact label="The history" resetKey={r.id}>
                                         <HistoryTimeline id={r.id} />
+                                    </ModuleBoundary>
+                                ),
+                            },
+                            {
+                                key: 'periods',
+                                label: 'All periods',
+                                children: (
+                                    <ModuleBoundary compact label="The periods" resetKey={r.id}>
+                                        <ScheduleHistory id={r.id} onNavigate={onNavigate} />
                                     </ModuleBoundary>
                                 ),
                             },

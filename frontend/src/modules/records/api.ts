@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../core/api/client';
+import type { DashStatus } from '../../core/filters';
 import type { HistoryEvent, RecordDetail } from './types';
 
 export const useRecord = (id: string) =>
@@ -26,3 +27,31 @@ export function useRefreshAfterChange() {
             qc.invalidateQueries({ queryKey: ['documents'] }),
         ]);
 }
+
+
+export type PeriodRow = {
+    id: string;
+    isCurrent: boolean;
+    status: string;
+    dashboardStatus: DashStatus;
+    frequency: string;
+    dueDate: string;
+    periodStart: string;
+    periodEnd: string;
+    enteredAt: string | null;
+    doneDate: string | null;
+    submittedBy: string | null;
+    pendingAt: { role: 'owner' | 'manager' | 'approver'; name: string } | null;
+    approvedBy: string | null;
+    closedAt: string | null;
+    remarks: string | null;
+    documents: number;
+};
+export type ScheduleHistory = { total: number; shown: number; items: PeriodRow[] };
+
+// Every period of the same compliance at the same location
+export const useScheduleHistory = (id: string) =>
+    useQuery({
+        queryKey: ['record', id, 'schedule-history'],
+        queryFn: ({ signal }) => api<ScheduleHistory>(`/compliance/instances/${id}/schedule-history`, { signal }),
+    });

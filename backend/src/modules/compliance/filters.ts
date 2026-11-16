@@ -82,6 +82,13 @@ export const dashboardQuerySchema = z
     });
 export type DashboardQuery = z.output<typeof dashboardQuerySchema>;
 
+// One month of the dashboard's Data tab: counts per due date, for the day strip
+export const daysQuerySchema = z.object({
+    ...dimensionShape,
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Use a month such as 2026-11'),
+});
+export type DaysQuery = z.output<typeof daysQuerySchema>;
+
 export const instanceListSchema = z
     .object({
         ...dimensionShape,

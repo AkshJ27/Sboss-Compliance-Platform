@@ -7,7 +7,7 @@ import {
     addInto, bucket, countsByDay, emptyCounts, percentOf, totalOf,
 } from './dashboard.calc';
 import { DIMENSIONS, buildInstanceWhere, dashboardStatusWhere, dueRange } from './filters';
-import type { DashboardQuery, DimensionFilters } from './filters';
+import type { DashboardQuery, DaysQuery, DimensionFilters } from './filters';
 import { visibleTo } from './instances.service';
 import {
     fyLabel, fyRange, fyStartYear, monthLabel, monthRange, monthsOfFy,
@@ -78,6 +78,24 @@ export async function summary(actor: AuthUser, q: DashboardQuery) {
             pendingForSubmission,
             oldestDueDate: oldest._min.dueDate ? toDateOnly(oldest._min.dueDate) : null,
         },
+    };
+}
+
+// Each day of one month that has items due, with its counts by status. Days with nothing due are left out.
+export async function days(actor: AuthUser, q: DaysQuery) {
+    const { from, to } = monthRange(q.month);
+    const byDay = await loadDays(actor, q, from, to);
+    const totals = emptyCounts();
+    for (const c of byDay.values()) addInto(totals, c);
+    return {
+        asOf: todayInIndia(),
+        month: q.month,
+        from,
+        to,
+        totals,
+        days: [...byDay.entries()]
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, counts]) => ({ date, counts, total: totalOf(counts) })),
     };
 }
 

@@ -40,6 +40,11 @@ workflowRouter.post('/:id/due-date', actors, async (req, res) => {
     res.json(await wf.changeDueDate(getUser(req), id, s.dueDateSchema.parse(req.body)));
 });
 
+workflowRouter.get('/:id/schedule-history', async (req, res) => {
+    const { id } = s.idParamSchema.parse(req.params);
+    res.json(await wf.scheduleHistory(getUser(req), id));
+});
+
 workflowRouter.get('/:id/history', async (req, res) => {
     const { id } = s.idParamSchema.parse(req.params);
     res.json(await wf.history(getUser(req), id));

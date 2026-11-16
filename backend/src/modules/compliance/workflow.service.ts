@@ -4,7 +4,7 @@ import { HttpError } from '../../lib/errors';
 import { recordAudit } from '../../lib/audit';
 import { parseDateOnly, toDateOnly, todayInIndia } from '../../lib/dates';
 import type { AuthUser } from '../../middleware/auth';
-import { getInstance, visibleTo } from './instances.service';
+import { getInstance, visibleTo, withOverdue } from './instances.service';
 import { assertAssignees } from './schedules.service';
 import { countProof } from './proof';
 import type { AssigneesInput, DraftInput, DueDateInput, SubmitInput } from './workflow.schema';
@@ -360,6 +360,90 @@ export async function changeDueDate(actor: AuthUser, id: string, input: DueDateI
         );
     });
     return getInstance(actor, id);
+}
+
+const PENDING_AT: Partial<Record<InstanceStatus, 'owner' | 'manager' | 'approver'>> = {
+    DUE: 'owner',
+    RETURNED: 'owner',
+    SUBMITTED: 'manager',
+    MANAGER_APPROVED: 'approver',
+};
+const MAX_PERIODS = 200;
+
+// Every period of the same compliance at the same location, newest first.
+// Anyone who can see this item sees the whole run, as in Complinity's schedule history.
+export async function scheduleHistory(actor: AuthUser, id: string) {
+    const current = await prisma.complianceInstance.findFirst({
+        where: { id, orgId: actor.orgId, ...visibleTo(actor) },
+        select: { scheduleId: true },
+    });
+    if (!current) throw new HttpError(404, 'Compliance item not found');
+
+    const where = { orgId: actor.orgId, scheduleId: current.scheduleId };
+    const [total, rows] = await prisma.$transaction([
+        prisma.complianceInstance.count({ where }),
+        prisma.complianceInstance.findMany({
+            where,
+            orderBy: [{ dueDate: 'desc' }, { id: 'asc' }],
+            take: MAX_PERIODS,
+            select: {
+                id: true,
+                status: true,
+                dueDate: true,
+                doneDate: true,
+                periodStart: true,
+                periodEnd: true,
+                submittedAt: true,
+                submittedById: true,
+                closedAt: true,
+                closedById: true,
+                remarks: true,
+                compliance: { select: { frequency: true } },
+                owner: { select: { id: true, name: true } },
+                manager: { select: { id: true, name: true } },
+                approver: { select: { id: true, name: true } },
+                _count: { select: { documents: { where: { deletedAt: null } } } },
+            },
+        }),
+    ]);
+
+    // Who submitted and who approved are stored as ids
+    const ids = new Set<string>();
+    for (const r of rows) {
+        if (r.submittedById) ids.add(r.submittedById);
+        if (r.closedById) ids.add(r.closedById);
+    }
+    const users = ids.size
+        ? await prisma.user.findMany({ where: { orgId: actor.orgId, id: { in: [...ids] } }, select: { id: true, name: true } })
+        : [];
+    const name = new Map<string, string>(users.map((u) => [u.id, u.name]));
+
+    return {
+        total,
+        shown: rows.length,
+        items: rows.map((r) => {
+            const pending = PENDING_AT[r.status];
+            const pendingWith = pending ? r[pending] : null;
+            return {
+                id: r.id,
+                isCurrent: r.id === id,
+                status: r.status,
+                dashboardStatus: withOverdue(r).dashboardStatus,
+                frequency: r.compliance.frequency,
+                dueDate: toDateOnly(r.dueDate),
+                periodStart: toDateOnly(r.periodStart),
+                periodEnd: toDateOnly(r.periodEnd),
+                enteredAt: r.submittedAt ? r.submittedAt.toISOString() : null,
+                doneDate: r.doneDate ? toDateOnly(r.doneDate) : null,
+                submittedBy: r.submittedById ? name.get(r.submittedById) ?? null : null,
+                pendingAt: pendingWith ? { role: pending, name: pendingWith.name } : null,
+                approvedBy: r.closedById ? name.get(r.closedById) ?? null : null,
+                closedAt: r.closedAt ? r.closedAt.toISOString() : null,
+                remarks: r.remarks,
+                documents: r._count.documents,
+            };
+        }),
+    };
 }
 
 export async function history(actor: AuthUser, id: string) {
