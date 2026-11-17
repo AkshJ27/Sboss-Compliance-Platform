@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { todayInIndia } from '../lib/dates';
 import { purgeOld, runDigest } from '../modules/notifications/digest.job';
 import { sendPendingEmails } from '../modules/notifications/email.queue';
+import { runDocumentExpiry } from '../modules/documents/expiry.job';
 
 const TICK_MS = 60_000;
 const RETRY_AFTER_MS = 30 * 60 * 1000;
@@ -71,6 +72,8 @@ async function tick() {
             const purged = await purgeOld();
             return { digests: r.totalDigests, created: r.created, ...purged };
         });
+        // Reminders for documents nearing their expiry date (Alert Days)
+        await runOnce('document-expiry', today, () => runDocumentExpiry(today));
     }
     await sendPendingEmails();
 }

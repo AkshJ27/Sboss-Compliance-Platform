@@ -676,6 +676,7 @@ enum NotificationType {
   DAILY_DIGEST
   TASK_ASSIGNED
   TASK_UPDATED
+    DOCUMENT_EXPIRING
 }
 
 enum EmailStatus {

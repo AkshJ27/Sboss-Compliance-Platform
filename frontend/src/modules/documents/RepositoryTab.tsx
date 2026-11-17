@@ -20,6 +20,7 @@ import { errorText } from '../../shared/errors';
 import { useEntities, useSimple } from '../admin/api';
 import { ACCESS_DOT, ACCESS_HELP, useDocCategories, useEntityLocations, useRecordSummary } from './api';
 import type { DocRecord, RecordPage } from './api';
+import { DocumentDataUploadModal } from './DocumentDataUploadModal';
 import { DocumentMastersDrawer } from './DocumentMastersDrawer';
 import type { MastersTab } from './DocumentMastersDrawer';
 import { RecordFormModal } from './RecordFormModal';
@@ -59,6 +60,7 @@ export function RepositoryTab() {
     const [limit, setLimit] = useState(25);
     const [open, setOpen] = useState<string | 'new' | null>(null);
     const [masters, setMasters] = useState<MastersTab | null>(null);
+    const [uploading, setUploading] = useState(false);
     const [exporting, setExporting] = useState(false);
 
     const entities = useEntities(true);
@@ -362,6 +364,16 @@ export function RepositoryTab() {
                 <Dropdown
                     menu={{
                         items: [
+                            ...(user?.role === 'ORG_ADMIN'
+                                ? [
+                                    {
+                                        key: 'actions',
+                                        type: 'group' as const,
+                                        label: 'Document Actions',
+                                        children: [{ key: 'data-upload', label: 'Document Data Upload' }],
+                                    },
+                                ]
+                                : []),
                             {
                                 key: 'masters',
                                 type: 'group',
@@ -374,7 +386,7 @@ export function RepositoryTab() {
                                 ],
                             },
                         ],
-                        onClick: ({ key }) => setMasters(key as MastersTab),
+                        onClick: ({ key }) => (key === 'data-upload' ? setUploading(true) : setMasters(key as MastersTab)),
                     }}
                 >
                     <Button type="primary">
@@ -498,6 +510,7 @@ export function RepositoryTab() {
             </Card>
 
             {open && <RecordFormModal recordId={open} onClose={() => setOpen(null)} />}
+            {uploading && <DocumentDataUploadModal onClose={() => setUploading(false)} />}
             {masters && <DocumentMastersDrawer tab={masters} onTabChange={setMasters} onClose={() => setMasters(null)} />}
         </Space>
     );

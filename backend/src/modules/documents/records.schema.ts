@@ -109,3 +109,12 @@ export const ownerSwapSchema = z
     .strict()
     .refine((v) => v.fromUserId !== v.toUserId, { message: 'Choose two different people', path: ['toUserId'] });
 export type OwnerSwapInput = z.infer<typeof ownerSwapSchema>;
+
+
+// The Document Data Upload is checked without saving unless dryRun=false is sent
+export const uploadQuerySchema = z.object({
+    dryRun: z
+        .enum(['true', 'false'])
+        .default('true')
+        .transform((v) => v === 'true'),
+});

@@ -1,9 +1,12 @@
 import { Router } from 'express';
+import { HttpError } from '../../lib/errors';
+import { todayInIndia } from '../../lib/dates';
 import { getUser, requireRole } from '../../middleware/auth';
-import { documentFilesUpload } from '../../middleware/document-upload';
+import { documentDataUpload, documentFilesUpload } from '../../middleware/document-upload';
 import * as cats from './categories.service';
 import * as s from './records.schema';
 import * as records from './records.service';
+import { importRecords, uploadFormat } from './records.upload.service';
 
 const admin = requireRole('ORG_ADMIN');
 const writers = requireRole('ORG_ADMIN', 'MEMBER');
@@ -45,6 +48,24 @@ docRecordsRouter.get('/export', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${out.fileName}"`);
     res.setHeader('Cache-Control', 'private, no-store');
     res.send(out.buffer);
+});
+
+// Document Data Upload (admins): the format to fill in, then the filled sheet plus a zip of the files
+docRecordsRouter.get('/upload-format', admin, async (req, res) => {
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Document_Data_Format-${todayInIndia()}.xlsx"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(await uploadFormat(getUser(req).orgId));
+});
+
+// Checked first with ?dryRun=true. A file with problems comes back as 422 with every problem listed.
+docRecordsRouter.post('/upload', admin, documentDataUpload, async (req, res) => {
+    const { dryRun } = s.uploadQuerySchema.parse(req.query);
+    const files = req.files as Record<string, { buffer: Buffer }[]> | undefined;
+    const details = files?.details?.[0];
+    if (!details) throw new HttpError(400, 'Choose the Excel file with the document details');
+    const out = await importRecords(getUser(req), details.buffer, files?.zip?.[0]?.buffer ?? null, dryRun);
+    res.status(out.ok ? (dryRun ? 200 : 201) : 422).json(out);
 });
 
 docRecordsRouter.post('/owner-swap', admin, async (req, res) => {
