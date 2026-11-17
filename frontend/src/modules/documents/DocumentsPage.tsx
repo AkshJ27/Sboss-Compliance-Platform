@@ -1,10 +1,7 @@
 import { useState } from 'react';
-import {
-    Alert, Button, Card, Col, Input, Modal, Popconfirm, Row, Segmented, Space, Statistic, Table, Tabs, Tag,
-    Typography, message,
-} from 'antd';
+import { Alert, Button, Input, Popconfirm, Segmented, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import type { TableProps } from 'antd';
-import { DeleteOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { MessageInstance } from 'antd/es/message/interface';
@@ -15,9 +12,7 @@ import { formatDate } from '../../core/format';
 import { ACCESS_COLOR, ACCESS_LABEL, downloadDocument, formatSize } from '../../shared/documents';
 import type { DocItem, DocPage } from '../../shared/documents';
 import { errorText } from '../../shared/errors';
-import { ProofUploader } from '../../shared/ProofUploader';
-
-type SummaryData = { total: number; expired: number; expiringIn30Days: number; itemsMissingProof: number };
+import { RepositoryTab } from './RepositoryTab';
 
 type MissingRow = {
     id: string;
@@ -30,57 +25,6 @@ type MissingRow = {
     manager: { id: string; name: string };
 };
 type MissingPage = { items: MissingRow[]; total: number };
-
-function SummaryRow() {
-    const q = useQuery({
-        queryKey: ['documents', 'summary'],
-        queryFn: ({ signal }) => api<SummaryData>('/documents/summary', { signal }),
-    });
-
-    if (q.isError) {
-        return (
-            <Alert
-                type="error"
-                showIcon
-                message="The summary could not be loaded"
-                action={
-                    <Button size="small" onClick={() => void q.refetch()}>
-                        Retry
-                    </Button>
-                }
-            />
-        );
-    }
-    const d = q.data;
-    return (
-        <Row gutter={[12, 12]}>
-            <Col xs={12} md={6}>
-                <Card size="small" loading={!d}>
-                    <Statistic title="Documents" value={d?.total ?? 0} />
-                </Card>
-            </Col>
-            <Col xs={12} md={6}>
-                <Card size="small" loading={!d}>
-                    <Statistic title="Expired" value={d?.expired ?? 0} valueStyle={{ color: d?.expired ? '#cf1322' : undefined }} />
-                </Card>
-            </Col>
-            <Col xs={12} md={6}>
-                <Card size="small" loading={!d}>
-                    <Statistic title="Expiring in 30 days" value={d?.expiringIn30Days ?? 0} />
-                </Card>
-            </Col>
-            <Col xs={12} md={6}>
-                <Card size="small" loading={!d}>
-                    <Statistic
-                        title="Items missing proof"
-                        value={d?.itemsMissingProof ?? 0}
-                        valueStyle={{ color: d?.itemsMissingProof ? '#cf1322' : undefined }}
-                    />
-                </Card>
-            </Col>
-        </Row>
-    );
-}
 
 function MissingTab() {
     const navigate = useNavigate();
@@ -160,7 +104,8 @@ function MissingTab() {
     );
 }
 
-function DocumentsTab({ notify }: { notify: MessageInstance }) {
+// Proof attached to compliance items (and older standalone uploads)
+function ProofsTab({ notify }: { notify: MessageInstance }) {
     const navigate = useNavigate();
     const qc = useQueryClient();
     const { user } = useAuth();
@@ -168,7 +113,6 @@ function DocumentsTab({ notify }: { notify: MessageInstance }) {
     const [view, setView] = useState<'ALL' | 'EXPIRED' | 'SOON' | 'STANDALONE'>('ALL');
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(25);
-    const [uploading, setUploading] = useState(false);
 
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set('search', search);
@@ -300,14 +244,9 @@ function DocumentsTab({ notify }: { notify: MessageInstance }) {
                         { label: 'All', value: 'ALL' },
                         { label: 'Expired', value: 'EXPIRED' },
                         { label: 'Expiring in 30 days', value: 'SOON' },
-                        { label: 'Standalone', value: 'STANDALONE' },
+                        { label: 'Older standalone uploads', value: 'STANDALONE' },
                     ]}
                 />
-                {user?.role !== 'VIEWER' && (
-                    <Button icon={<UploadOutlined />} onClick={() => setUploading(true)}>
-                        Upload a document
-                    </Button>
-                )}
             </Space>
 
             {q.isError && (
@@ -342,16 +281,6 @@ function DocumentsTab({ notify }: { notify: MessageInstance }) {
                 }}
             />
 
-            <Modal open={uploading} title="Upload a standalone document" footer={null} onCancel={() => setUploading(false)} destroyOnClose>
-                <ProofUploader
-                    isAdmin={user?.role === 'ORG_ADMIN'}
-                    notify={notify}
-                    onUploaded={() => {
-                        setUploading(false);
-                        void refreshAll();
-                    }}
-                />
-            </Modal>
         </Space>
     );
 }
@@ -365,27 +294,33 @@ export default function DocumentsPage() {
                 Documents
             </Typography.Title>
 
-            <ModuleBoundary compact label="The summary">
-                <SummaryRow />
-            </ModuleBoundary>
-
             <Tabs
+                destroyInactiveTabPane
                 items={[
+                    {
+                        key: 'repository',
+                        label: 'Documents',
+                        children: (
+                            <ModuleBoundary compact label="This list">
+                                <RepositoryTab />
+                            </ModuleBoundary>
+                        ),
+                    },
+                    {
+                        key: 'proofs',
+                        label: 'Compliance proofs',
+                        children: (
+                            <ModuleBoundary compact label="This list">
+                                <ProofsTab notify={notify} />
+                            </ModuleBoundary>
+                        ),
+                    },
                     {
                         key: 'missing',
                         label: 'Items missing proof',
                         children: (
                             <ModuleBoundary compact label="This list">
                                 <MissingTab />
-                            </ModuleBoundary>
-                        ),
-                    },
-                    {
-                        key: 'all',
-                        label: 'All documents',
-                        children: (
-                            <ModuleBoundary compact label="This list">
-                                <DocumentsTab notify={notify} />
                             </ModuleBoundary>
                         ),
                     },

@@ -4,10 +4,15 @@ import { getUser, requireRole } from '../../middleware/auth';
 import { documentUpload } from '../../middleware/document-upload';
 import * as s from './documents.schema';
 import * as docs from './documents.service';
+import { docCategoriesRouter, docRecordsRouter } from './records.routes';
 
 // Behind login. Viewers can read but never change anything.
 export const documentsRouter = Router();
 const writers = requireRole('ORG_ADMIN', 'MEMBER');
+
+// The document repository and its categories. These must stay above "/:id".
+documentsRouter.use('/records', docRecordsRouter);
+documentsRouter.use('/categories', docCategoriesRouter);
 
 // These two must stay above "/:id"
 documentsRouter.get('/summary', async (req, res) => {

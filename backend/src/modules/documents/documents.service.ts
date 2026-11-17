@@ -12,6 +12,7 @@ import { parseDateOnly, toDateOnly, todayInIndia } from '../../lib/dates';
 import type { AuthUser } from '../../middleware/auth';
 import { visibleTo } from '../compliance/instances.service';
 import type { ListQuery, MissingQuery, UpdateInput, UploadFields } from './documents.schema';
+import { openableRecords } from './records.access';
 
 type Tx = Prisma.TransactionClient;
 
@@ -45,21 +46,33 @@ function present<T extends { expiresAt: Date | null }>(d: T) {
 export function visibleDocs(actor: AuthUser): Prisma.DocumentWhereInput {
     const base: Prisma.DocumentWhereInput = { orgId: actor.orgId, deletedAt: null };
     if (actor.role === 'ORG_ADMIN') return base;
-    if (actor.role === 'VIEWER') return { ...base, accessLevel: 'PUBLIC' };
+    // Files of a repository document follow that document's rules (see records.access.ts)
+    const repositoryFiles: Prisma.DocumentWhereInput = { recordId: { not: null }, record: openableRecords(actor) };
+    if (actor.role === 'VIEWER') {
+        return { ...base, OR: [{ recordId: null, accessLevel: 'PUBLIC' }, repositoryFiles] };
+    }
     return {
         ...base,
         OR: [
-            { accessLevel: 'PUBLIC' },
-            { accessLevel: { in: ['PRIVATE', 'PROTECTED'] }, uploadedById: actor.id },
             {
-                accessLevel: 'PROTECTED',
-                instance: {
-                    OR: [{ ownerId: actor.id }, { managerId: actor.id }, { approverId: actor.id }],
-                },
+                recordId: null,
+                OR: [
+                    { accessLevel: 'PUBLIC' },
+                    { accessLevel: { in: ['PRIVATE', 'PROTECTED'] }, uploadedById: actor.id },
+                    {
+                        accessLevel: 'PROTECTED',
+                        instance: {
+                            OR: [{ ownerId: actor.id }, { managerId: actor.id }, { approverId: actor.id }],
+                        },
+                    },
+                ],
             },
+            repositoryFiles,
         ],
     };
 }
+
+const REPOSITORY_FILE = 'This file belongs to a document in the Documents list. Change it from there.';
 
 // Holds a lock on the item until the transaction ends, and fails if it is no longer open
 async function lockOpenInstance(tx: Tx, orgId: string, instanceId: string, ownerId?: string) {
@@ -169,7 +182,8 @@ export async function upload(
 
 export async function list(actor: AuthUser, q: ListQuery) {
     const today = parseDateOnly(todayInIndia());
-    const and: Prisma.DocumentWhereInput[] = [visibleDocs(actor)];
+    // Files of repository documents are listed with their document, not here
+    const and: Prisma.DocumentWhereInput[] = [visibleDocs(actor), { recordId: null }];
 
     if (q.instanceId) and.push({ instanceId: q.instanceId });
     if (q.standalone) and.push({ instanceId: null });
@@ -220,6 +234,7 @@ export async function update(actor: AuthUser, id: string, input: UpdateInput) {
             include: { instance: { select: { ownerId: true } } },
         });
         if (!doc) throw new HttpError(404, 'Document not found');
+        if (doc.recordId) throw new HttpError(409, REPOSITORY_FILE);
         assertCanManage(actor, doc);
 
         if (input.accessLevel === 'RESTRICTED' && actor.role !== 'ORG_ADMIN') {
@@ -256,6 +271,7 @@ export async function remove(actor: AuthUser, id: string) {
             include: { instance: { select: { ownerId: true } } },
         });
         if (!doc) throw new HttpError(404, 'Document not found');
+        if (doc.recordId) throw new HttpError(409, REPOSITORY_FILE);
         assertCanManage(actor, doc);
         if (doc.instanceId) await lockOpenInstance(tx, actor.orgId, doc.instanceId);
 
