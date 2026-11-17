@@ -53,6 +53,10 @@ model User {
   role             Role      @default(MEMBER)
   isActive         Boolean   @default(true)
   isPlatformAdmin  Boolean   @default(false)
+    managerId        String? // reporting manager
+  employeeCode     String? // the person's ID in other systems, such as Complinity's User ID
+  mobile           String?
+    defaultApproverId String? // approves this person's compliance items by default
   failedLoginCount Int       @default(0)
   lockedUntil      DateTime?
   lastLoginAt      DateTime?
@@ -67,6 +71,8 @@ model User {
   refreshTokens RefreshToken[]
  instanceEvents InstanceEvent[]
   @@index([orgId])
+    @@index([managerId])
+      @@index([defaultApproverId])
   emailAlerts   Boolean        @default(true)
   notifications Notification[]
   assignedTasks Task[]      @relation("TaskAssignee")
@@ -85,6 +91,10 @@ model User {
   createdDocRecords DocumentRecord[]     @relation("DocRecordCreator")
   docRecordAccess   DocumentRecordUser[]
     actSubscriptions  ActSubscription[]
+      manager           User?                @relation("ReportingManager", fields: [managerId], references: [id], onDelete: SetNull)
+  reports           User[]               @relation("ReportingManager")
+    defaultApprover   User?                @relation("DefaultApprover", fields: [defaultApproverId], references: [id], onDelete: SetNull)
+  approvees         User[]               @relation("DefaultApprover")
 }
 
 model RefreshToken {

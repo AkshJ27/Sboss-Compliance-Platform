@@ -14,7 +14,7 @@ export function ReviewActions({ record, stage, notify }: Props) {
     const [remarks, setRemarks] = useState('');
     const [busy, setBusy] = useState(false);
 
-    const sendsOn = stage === 'MANAGER' && record.requiresApprover;
+    const sendsOn = stage === 'MANAGER' && (record.requiresApprover || !!record.approver);
     const noApprover = sendsOn && !record.approver;
 
     const close = () => {

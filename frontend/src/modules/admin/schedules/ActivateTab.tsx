@@ -250,7 +250,18 @@ export function ActivateTab({ onDone }: { onDone: () => void }) {
                     </Col>
                     <Col xs={24} md={8}>
                         <Form.Item label="Owner" name="ownerId" rules={[{ required: true, message: 'Choose an owner' }]}>
-                            <Select showSearch optionFilterProp="label" options={people} placeholder="Does the work" />
+                            <Select
+                                showSearch
+                                optionFilterProp="label"
+                                options={people}
+                                placeholder="Does the work"
+                                onChange={(id: string) => {
+                                    // The owner's default approver fills in the Approver, if it is empty
+                                    if (form.getFieldValue('approverId')) return;
+                                    const a = (users.data ?? []).find((u) => u.id === id)?.defaultApproverId;
+                                    if (a && a !== id && a !== form.getFieldValue('managerId')) form.setFieldValue('approverId', a);
+                                }}
+                            />
                         </Form.Item>
                     </Col>
                     <Col xs={24} md={8}>
@@ -259,7 +270,7 @@ export function ActivateTab({ onDone }: { onDone: () => void }) {
                         </Form.Item>
                     </Col>
                     <Col xs={24} md={8}>
-                        <Form.Item label="Approver" name="approverId" extra="Required when any chosen item is high risk.">
+                        <Form.Item label="Approver" name="approverId" extra="Filled in from the owner's default approver. Required when any chosen item is high risk.">
                             <Select allowClear showSearch optionFilterProp="label" options={people} placeholder="Final sign-off" />
                         </Form.Item>
                     </Col>

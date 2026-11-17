@@ -221,8 +221,8 @@ export async function approve(actor: AuthUser, id: string, remarks?: string) {
         const inst = await load(tx, actor, id);
         const stage = reviewStage(inst, actor);
 
-        // High-risk items continue to the approver after the manager
-        if (stage === 'MANAGER' && inst.requiresApprover) {
+        // An item with an approver goes on to them after the manager. High-risk items must have one.
+        if (stage === 'MANAGER' && (inst.requiresApprover || inst.approverId)) {
             if (!inst.approverId) {
                 throw new HttpError(409, 'This high-risk item needs an approver. Ask an admin to assign one.');
             }

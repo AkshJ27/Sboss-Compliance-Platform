@@ -15,8 +15,13 @@ const schema = z
         LOCAL_STORAGE_DIR: z.string().min(1).default('./storage'),
         S3_BUCKET: z.string().min(1).optional(),
         AWS_REGION: z.string().min(1).optional(),
-        EMAIL_DRIVER: z.enum(['file', 'ses', 'off']).default('file'),
+        EMAIL_DRIVER: z.enum(['file', 'ses', 'outlook', 'off']).default('file'),
         EMAIL_FROM: z.string().min(3).optional(),
+        // For EMAIL_DRIVER=outlook: the Azure app registration, and the mailbox it sends from
+        AZURE_SENDER_EMAIL: z.string().trim().email().optional(),
+        AZURE_TENANT_ID: z.string().min(1).optional(),
+        AZURE_CLIENT_ID: z.string().min(1).optional(),
+        AZURE_CLIENT_SECRET: z.string().min(1).optional(),
         OUTBOX_DIR: z.string().min(1).default('./outbox'),
         APP_URL: z.string().url().default('http://localhost:5173'),
         RUN_JOBS: z
@@ -50,11 +55,16 @@ const schema = z
                 ctx.addIssue({ code: 'custom', path: ['AWS_REGION'], message: 'Required when EMAIL_DRIVER is ses' });
             }
         }
+        if (v.EMAIL_DRIVER === 'outlook') {
+            for (const k of ['AZURE_SENDER_EMAIL', 'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'] as const) {
+                if (!v[k]) ctx.addIssue({ code: 'custom', path: [k], message: 'Required when EMAIL_DRIVER is outlook' });
+            }
+        }
         if (v.NODE_ENV === 'production' && v.EMAIL_DRIVER === 'file') {
             ctx.addIssue({
                 code: 'custom',
                 path: ['EMAIL_DRIVER'],
-                message: 'Use ses (or off) in production: emails written to a folder are never delivered',
+                message: 'Use outlook or ses (or off) in production: emails written to a folder are never delivered',
             });
         }
     });

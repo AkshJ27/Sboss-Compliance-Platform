@@ -154,6 +154,16 @@ export function RecordFormModal({ recordId: initialId, onClose }: Props) {
         if (loaded) form.setFieldsValue(toForm(loaded));
     }, [loaded, form]);
 
+
+    // A new document starts with the owner's reporting manager as its manager, as Complinity does
+    const managerOf = (userId: string | undefined) => (users.data ?? []).find((u) => u.id === userId)?.managerId ?? undefined;
+    useEffect(() => {
+        if (!isNew || form.getFieldValue('managerId')) return;
+        const m = managerOf(user?.id);
+        if (m) form.setFieldValue('managerId', m);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isNew, users.data, user?.id, form]);
+
     // Keeps an inactive value that is already saved visible in its dropdown
     const withCurrent = (opts: { value: string; label: string }[], current: { id: string; name: string } | null | undefined) =>
         current && !opts.some((o) => o.value === current.id) ? [...opts, { value: current.id, label: `${current.name} (inactive)` }] : opts;
@@ -417,7 +427,16 @@ export function RecordFormModal({ recordId: initialId, onClose }: Props) {
                         <Col xs={24} md={8}>
                             {isAdmin ? (
                                 <Form.Item name="ownerId" label="Owner" tooltip="Left empty, you are the owner">
-                                    <Select allowClear showSearch optionFilterProp="label" placeholder={ownerName || 'You'} options={opts.people} />
+                                    <Select
+                                        allowClear
+                                        showSearch
+                                        optionFilterProp="label"
+                                        placeholder={ownerName || 'You'}
+                                        options={opts.people}
+                                        onChange={(v: string | undefined) => {
+                                            if (isNew) form.setFieldValue('managerId', managerOf(v ?? user?.id));
+                                        }}
+                                    />
                                 </Form.Item>
                             ) : (
                                 <Form.Item label="Owner">

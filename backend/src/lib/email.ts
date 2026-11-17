@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { env } from '../config/env';
+import { sendViaGraph } from './email-graph';
 
 export type Email = { id: string; to: string; subject: string; text: string };
 
@@ -25,6 +26,18 @@ export async function sendEmail(mail: Email): Promise<'sent' | 'skipped'> {
             path.join(dir, name),
             `From: ${FROM}\nTo: ${mail.to}\nSubject: ${subject}\n\n${mail.text}\n`,
             { flag: 'wx' },
+        );
+        return 'sent';
+    }
+
+    if (env.EMAIL_DRIVER === 'outlook') {
+        await sendViaGraph(
+            {
+                tenantId: env.AZURE_TENANT_ID as string,
+                clientId: env.AZURE_CLIENT_ID as string,
+                clientSecret: env.AZURE_CLIENT_SECRET as string,
+            },
+            { from: env.AZURE_SENDER_EMAIL as string, to: mail.to, subject, text: mail.text },
         );
         return 'sent';
     }

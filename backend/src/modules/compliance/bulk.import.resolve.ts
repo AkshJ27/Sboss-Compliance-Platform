@@ -26,7 +26,14 @@ export type ComplianceRef = {
     jurisdiction: string;
     actActive: boolean;
 };
-export type UserRef = { id: string; name: string; isActive: boolean; role: string };
+export type UserRef = {
+    id: string;
+    name: string;
+    isActive: boolean;
+    role: string;
+    // Fills in the Approver when the row leaves it blank. Set only when that person can approve.
+    defaultApproverId?: string | null;
+};
 export type NamedRef = { id: string; isActive: boolean };
 
 export type Lookups = {
@@ -134,7 +141,13 @@ export function resolveRows(rows: readonly RawRow[], lk: Lookups, defaultStart: 
         };
         const owner = person('owner', r.owner);
         const manager = person('manager', r.manager);
-        const approver = r.approver ? person('approver', r.approver) : null;
+        const namedApprover = r.approver ? person('approver', r.approver) : null;
+        // A blank Approver takes the owner's default approver, unless they are already the owner or manager
+        const fallback =
+            !r.approver && owner?.defaultApproverId && owner.defaultApproverId !== owner.id && owner.defaultApproverId !== manager?.id
+                ? { id: owner.defaultApproverId }
+                : null;
+        const approver = namedApprover ?? fallback;
 
         // Only judge the combination when every person was found, so one mistake is not reported twice
         if (owner && manager && (!r.approver || approver)) {

@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "make-admin": "tsx scripts/make-platform-admin.ts",
+    "email:test": "tsx scripts/send-test-email.ts",
     "test": "vitest run",
     "dev:worker": "tsx watch src/worker.ts",
     "start:worker": "node dist/worker.js"

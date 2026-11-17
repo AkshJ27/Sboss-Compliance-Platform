@@ -41,6 +41,13 @@ export type UserRow = {
     createdAt: string;
     passwordSetAt: string | null;
     lockedUntil: string | null;
+    managerId: string | null;
+    manager: { id: string; name: string } | null;
+    defaultApproverId: string | null;
+    defaultApprover: { id: string; name: string } | null;
+    employeeCode: string | null;
+    mobile: string | null;
+    emailAlerts: boolean;
 };
 
 export const useEntities = (includeInactive: boolean) =>

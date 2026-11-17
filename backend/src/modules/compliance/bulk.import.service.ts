@@ -101,9 +101,25 @@ async function loadLookups(db: Db, orgId: string, parsed: ParsedFile): Promise<L
     for (const part of chunks([...emails], 5000)) {
         const found = await db.user.findMany({
             where: { orgId, email: { in: part } },
-            select: { id: true, email: true, name: true, isActive: true, role: true },
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                isActive: true,
+                role: true,
+                defaultApprover: { select: { id: true, isActive: true, role: true } },
+            },
         });
-        for (const u of found) users.set(u.email.toLowerCase(), { id: u.id, name: u.name, isActive: u.isActive, role: u.role });
+        for (const u of found) {
+            const a = u.defaultApprover;
+            users.set(u.email.toLowerCase(), {
+                id: u.id,
+                name: u.name,
+                isActive: u.isActive,
+                role: u.role,
+                defaultApproverId: a && a.isActive && a.role !== 'VIEWER' ? a.id : null,
+            });
+        }
     }
 
     const departmentMap = new Map<string, NamedRef>();

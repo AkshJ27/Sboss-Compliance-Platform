@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Alert, Button, Form, Input, Modal, Popconfirm, Radio, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Col, Form, Input, Modal, Popconfirm, Radio, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { TableProps } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../core/api/client';
 import type { Role } from '../../../core/api/client';
@@ -10,6 +10,7 @@ import { formatDateTime } from '../../../core/format';
 import { errorText } from '../../../shared/errors';
 import { useUsers } from '../api';
 import type { UserRow } from '../api';
+import { UsersUploadModal } from './UsersUploadModal';
 
 const ROLE_LABEL: Record<Role, string> = { ORG_ADMIN: 'Admin', MEMBER: 'Member', VIEWER: 'Viewer' };
 const ROLE_COLOR: Record<Role, string> = { ORG_ADMIN: 'red', MEMBER: 'blue', VIEWER: 'default' };
@@ -111,17 +112,19 @@ function NewUserModal({
     );
 }
 
-type EditValues = { name: string; role: Role };
+type EditValues = { name: string; role: Role; managerId?: string | null; defaultApproverId?: string | null; employeeCode?: string; mobile?: string };
 
 function EditUserModal({
     user,
     isSelf,
+    people,
     busy,
     onSave,
     onCancel,
 }: {
     user: UserRow;
     isSelf: boolean;
+    people: { value: string; label: string }[];
     busy: boolean;
     onSave: (v: EditValues) => void;
     onCancel: () => void;
@@ -133,7 +136,14 @@ function EditUserModal({
             <Form<EditValues>
                 form={form}
                 layout="vertical"
-                initialValues={{ name: user.name, role: user.role }}
+                initialValues={{
+                    name: user.name,
+                    role: user.role,
+                    managerId: user.managerId ?? undefined,
+                    defaultApproverId: user.defaultApproverId ?? undefined,
+                    employeeCode: user.employeeCode ?? undefined,
+                    mobile: user.mobile ?? undefined,
+                }}
                 onFinish={(v) => onSave({ ...v, name: v.name.trim() })}
             >
                 <Form.Item
@@ -153,6 +163,24 @@ function EditUserModal({
                 >
                     <Select disabled={isSelf} options={ROLE_OPTIONS} />
                 </Form.Item>
+                <Form.Item label="Reporting manager" name="managerId" extra="Filled in as the manager on new documents they add.">
+                    <Select allowClear showSearch optionFilterProp="label" placeholder="No manager" options={people.filter((p) => p.value !== user.id)} />
+                </Form.Item>
+                <Form.Item label="Default approver" name="defaultApproverId" extra="Filled in as the approver when compliances are assigned to this person. They give the final approval after the manager.">
+                    <Select allowClear showSearch optionFilterProp="label" placeholder="No approver" options={people.filter((p) => p.value !== user.id)} />
+                </Form.Item>
+                <Row gutter={12}>
+                    <Col span={12}>
+                        <Form.Item label="User ID / employee code" name="employeeCode" rules={[{ max: 50 }]}>
+                            <Input maxLength={50} />
+                        </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                        <Form.Item label="Mobile" name="mobile" rules={[{ pattern: /^[+\d][\d\s-]{6,19}$/, message: 'Enter a valid phone number' }]}>
+                            <Input maxLength={20} />
+                        </Form.Item>
+                    </Col>
+                </Row>
             </Form>
         </Modal>
     );
@@ -167,6 +195,8 @@ export default function UsersPage() {
     const [editing, setEditing] = useState<UserRow | null>(null);
     const [busy, setBusy] = useState(false);
     const [created, setCreated] = useState<Created | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const people = (q.data ?? []).filter((u) => u.isActive).map((u) => ({ value: u.id, label: `${u.name} (${u.email})` }));
 
     const refresh = () => qc.invalidateQueries({ queryKey: ['users'] });
 
@@ -201,6 +231,10 @@ export default function UsersPage() {
         const body: Record<string, unknown> = {};
         if (v.name !== editing.name) body.name = v.name;
         if (v.role !== editing.role) body.role = v.role;
+        if ((v.managerId ?? null) !== editing.managerId) body.managerId = v.managerId ?? null;
+        if ((v.defaultApproverId ?? null) !== editing.defaultApproverId) body.defaultApproverId = v.defaultApproverId ?? null;
+        if ((v.employeeCode?.trim() || null) !== editing.employeeCode) body.employeeCode = v.employeeCode?.trim() || null;
+        if ((v.mobile?.trim() || null) !== editing.mobile) body.mobile = v.mobile?.trim() || null;
         if (Object.keys(body).length === 0) {
             notify.info('Nothing was changed');
             return;
@@ -250,6 +284,9 @@ export default function UsersPage() {
             ),
         },
         { title: 'Email', dataIndex: 'email', key: 'email' },
+        { title: 'Manager', key: 'manager', render: (_, r) => r.manager?.name ?? '' },
+        { title: 'Approver', key: 'approver', render: (_, r) => r.defaultApprover?.name ?? '' },
+        { title: 'User ID', key: 'code', width: 90, render: (_, r) => r.employeeCode ?? '' },
         { title: 'Role', key: 'role', render: (_, r) => <Tag color={ROLE_COLOR[r.role]}>{ROLE_LABEL[r.role]}</Tag> },
         {
             title: 'Status',
@@ -314,9 +351,14 @@ export default function UsersPage() {
             <Typography.Title level={4} style={{ margin: 0 }}>
                 Users
             </Typography.Title>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)} style={{ width: 'fit-content' }}>
-                New user
-            </Button>
+            <Space wrap>
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+                    New user
+                </Button>
+                <Button icon={<UploadOutlined />} onClick={() => setUploading(true)}>
+                    Upload users (Excel)
+                </Button>
+            </Space>
 
             {q.isError && (
                 <Alert
@@ -341,12 +383,13 @@ export default function UsersPage() {
                 scroll={{ x: 1100 }}
                 pagination={{ pageSize: 25, hideOnSinglePage: true }}
             />
-
+            {uploading && <UsersUploadModal onClose={() => setUploading(false)} />}
             {creating && <NewUserModal busy={busy} onSave={(v) => void create(v)} onCancel={() => setCreating(false)} />}
             {editing && (
                 <EditUserModal
                     user={editing}
                     isSelf={editing.id === me?.id}
+                    people={people}
                     busy={busy}
                     onSave={(v) => void saveEdit(v)}
                     onCancel={() => setEditing(null)}
