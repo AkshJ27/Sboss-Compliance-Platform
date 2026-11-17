@@ -33,6 +33,7 @@ model Organization {
   documents Document[]
     documentRecords DocumentRecord[]
   docCategories   DocCategory[]
+    actSubscriptions ActSubscription[]
   notifications Notification[]
   eventTriggers EventTrigger[]
   amendmentDecisions AmendmentDecision[]
@@ -83,6 +84,7 @@ model User {
   managedDocRecords DocumentRecord[]     @relation("DocRecordManager")
   createdDocRecords DocumentRecord[]     @relation("DocRecordCreator")
   docRecordAccess   DocumentRecordUser[]
+    actSubscriptions  ActSubscription[]
 }
 
 model RefreshToken {
@@ -305,6 +307,8 @@ model Act {
   org                Organization?       @relation(fields: [orgId], references: [id], onDelete: Restrict)
   rules              Rule[]
   compliances        Compliance[]
+    legalUpdates       LegalUpdate[]
+  subscriptions      ActSubscription[]
 
   @@unique([name, jurisdiction, state])
   @@index([orgId])
@@ -322,6 +326,7 @@ model Rule {
 
   act         Act          @relation(fields: [actId], references: [id])
   compliances Compliance[]
+    legalUpdates LegalUpdate[]
 
   @@unique([actId, name])
   @@index([actId])
@@ -677,6 +682,7 @@ enum NotificationType {
   TASK_ASSIGNED
   TASK_UPDATED
     DOCUMENT_EXPIRING
+      LEGAL_UPDATE
 }
 
 enum EmailStatus {
@@ -869,4 +875,70 @@ model TaskEvent {
   actor User         @relation(fields: [actorId], references: [id])
 
   @@index([taskId, createdAt])
+}
+
+// ---- Legal updates (the Legal Update menu) ----------------------------------------------
+
+// News of a change in the law. Written once by the platform administrator and read by every company.
+model LegalUpdate {
+  id                 String    @id @default(uuid())
+  actId              String
+  ruleId             String?
+  ministry           String?
+  notificationDate   DateTime  @db.Date
+  effectiveDate      DateTime? @db.Date
+  publishedDate      DateTime  @db.Date
+  referenceNumber    String?
+  title              String
+  description        String
+  complianceImpact   Boolean   @default(false)
+  isChange           Boolean   @default(false)
+  isAddition         Boolean   @default(false)
+  isDeletion         Boolean   @default(false)
+  isSchedule         Boolean   @default(false)
+  impactedCompliance String?
+  createdById        String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  act   Act               @relation(fields: [actId], references: [id])
+  rule  Rule?             @relation(fields: [ruleId], references: [id])
+  files LegalUpdateFile[]
+
+  @@index([actId, notificationDate])
+  @@index([notificationDate])
+  @@index([publishedDate])
+}
+
+model LegalUpdateFile {
+  id            String   @id @default(uuid())
+  legalUpdateId String
+  fileName      String
+  contentType   String
+  sizeBytes     Int
+  sha256        String
+  storageKey    String   @unique
+  uploadedById  String
+  createdAt     DateTime @default(now())
+
+  legalUpdate LegalUpdate @relation(fields: [legalUpdateId], references: [id], onDelete: Cascade)
+
+  @@index([legalUpdateId])
+}
+
+// The Acts a person follows: their updates show under "Mapped", and emailAlerts also emails them
+model ActSubscription {
+  orgId       String
+  userId      String
+  actId       String
+  emailAlerts Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  act  Act          @relation(fields: [actId], references: [id], onDelete: Cascade)
+
+  @@id([userId, actId])
+  @@index([orgId])
+  @@index([actId])
 }

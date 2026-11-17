@@ -21,6 +21,8 @@ const LibraryPage = lazy(() => import('./modules/admin/library/LibraryPage'));
 const AuditPage = lazy(() => import('./modules/admin/audit/AuditPage'));
 const TasksPage = lazy(() => import('./modules/tasks/TasksPage'));
 const ReportsPage = lazy(() => import('./modules/reports/ReportsPage'));
+const LegalUpdatesPage = lazy(() => import('./modules/legal/LegalUpdatesPage'));
+const ConfigureLegalPage = lazy(() => import('./modules/legal/ConfigureLegalPage'));
 
 export default function App() {
   return (
@@ -35,6 +37,8 @@ export default function App() {
           <Route path="records" element={<RecordsPage />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="legal-updates" element={<LegalUpdatesPage />} />
+          <Route path="legal-updates/configure" element={<ConfigureLegalPage />} />
           <Route element={<RequireRole roles={['ORG_ADMIN', 'MEMBER']} />}>
             <Route path="tasks" element={<TasksPage />} />
           </Route>

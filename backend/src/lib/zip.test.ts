@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readZip } from './zip';
+import { readZip, writeZip } from './zip';
 
 // Made with Python's zipfile: a folder, a deflated PDF inside it, a stored text file and Mac junk
 const SAMPLE =
@@ -28,5 +28,19 @@ describe('readZip', () => {
 
     it('refuses things that are not zips', () => {
         expect(() => readZip(Buffer.from('definitely not a zip file at all'), limits)).toThrow('could not be read');
+    });
+});
+
+
+describe('writeZip', () => {
+    it('makes a zip that reads back, with repeated names kept apart', () => {
+        const zip = writeZip([
+            { name: 'UPI_OC_242.pdf', data: Buffer.from('%PDF-1.4 one') },
+            { name: 'UPI_OC_242.pdf', data: Buffer.from('%PDF-1.4 two') },
+            { name: 'notes/सूचना.txt', data: Buffer.from('hello') },
+        ]);
+        const back = readZip(zip, limits);
+        expect(back.map((e) => e.path)).toEqual(['UPI_OC_242.pdf', 'UPI_OC_242 (2).pdf', 'notes_सूचना.txt']);
+        expect(back[1].data.toString()).toBe('%PDF-1.4 two');
     });
 });

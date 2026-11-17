@@ -80,3 +80,76 @@ export function readZip(buf: Buffer, limits: ZipLimits): ZipEntry[] {
     }
     return entries;
 }
+
+
+// ---- Writing --------------------------------------------------------------------------------
+
+const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        t[n] = c >>> 0;
+    }
+    return t;
+})();
+
+export function crc32(buf: Buffer): number {
+    let c = 0xffffffff;
+    for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+}
+
+// Makes a plain zip with the files stored as they are (PDFs and Office files are already compressed).
+// Repeated names get " (2)", " (3)" so nothing is overwritten when the zip is opened.
+export function writeZip(files: { name: string; data: Buffer }[]): Buffer {
+    const used = new Set<string>();
+    const unique = (name: string) => {
+        let candidate = name;
+        const dot = name.lastIndexOf('.');
+        for (let i = 2; used.has(candidate.toLowerCase()); i++) {
+            candidate = dot > 0 ? `${name.slice(0, dot)} (${i})${name.slice(dot)}` : `${name} (${i})`;
+        }
+        used.add(candidate.toLowerCase());
+        return candidate;
+    };
+
+    const locals: Buffer[] = [];
+    const centrals: Buffer[] = [];
+    let offset = 0;
+    for (const f of files) {
+        const name = Buffer.from(unique(f.name.replace(/[\\/]/g, '_')), 'utf8');
+        const crc = crc32(f.data);
+        const local = Buffer.alloc(30);
+        local.writeUInt32LE(LOCAL, 0);
+        local.writeUInt16LE(20, 4); // version needed
+        local.writeUInt16LE(0x800, 6); // the name is UTF-8
+        local.writeUInt16LE(0, 8); // stored
+        local.writeUInt32LE(crc, 14);
+        local.writeUInt32LE(f.data.length, 18);
+        local.writeUInt32LE(f.data.length, 22);
+        local.writeUInt16LE(name.length, 26);
+        locals.push(local, name, f.data);
+
+        const central = Buffer.alloc(46);
+        central.writeUInt32LE(CENTRAL, 0);
+        central.writeUInt16LE(20, 4);
+        central.writeUInt16LE(20, 6);
+        central.writeUInt16LE(0x800, 8);
+        central.writeUInt32LE(crc, 16);
+        central.writeUInt32LE(f.data.length, 20);
+        central.writeUInt32LE(f.data.length, 24);
+        central.writeUInt16LE(name.length, 28);
+        central.writeUInt32LE(offset, 42);
+        centrals.push(central, name);
+        offset += 30 + name.length + f.data.length;
+    }
+    const cd = Buffer.concat(centrals);
+    const end = Buffer.alloc(22);
+    end.writeUInt32LE(EOCD, 0);
+    end.writeUInt16LE(files.length, 8);
+    end.writeUInt16LE(files.length, 10);
+    end.writeUInt32LE(cd.length, 12);
+    end.writeUInt32LE(offset, 16);
+    return Buffer.concat([...locals, cd, end]);
+}

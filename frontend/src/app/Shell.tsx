@@ -18,6 +18,7 @@ import {
     KeyOutlined,
     LogoutOutlined,
     PoweroffOutlined,
+    ReadOutlined,
     SettingOutlined,
     TeamOutlined,
     UnorderedListOutlined,
@@ -37,6 +38,7 @@ function selectedKey(path: string) {
     if (path.startsWith('/records')) return '/records';
     if (path.startsWith('/documents')) return '/documents';
     if (path.startsWith('/reports')) return '/reports';
+    if (path.startsWith('/legal-updates')) return '/legal-updates';
     if (path.startsWith('/tasks')) return '/tasks';
     return '/';
 }
@@ -76,6 +78,7 @@ export function Shell() {
         { key: '/records', icon: <UnorderedListOutlined />, label: 'Records' },
         { key: '/documents', icon: <FileTextOutlined />, label: 'Documents' },
         { key: '/reports', icon: <BarChartOutlined />, label: 'Reports' },
+        { key: '/legal-updates', icon: <ReadOutlined />, label: 'Legal Update' },
         ...(canUseTasks
             ? [
                 {

@@ -18,6 +18,7 @@ import { notificationsRouter } from './modules/notifications/notifications.route
 import { auditRouter } from './modules/audit/audit.routes';
 import { reportsRouter } from './modules/reports/reports.routes';
 import { tasksRouter } from './modules/tasks/tasks.routes';
+import { legalRouter } from './modules/legal/legal.routes';
 
 export const app = express();
 
@@ -58,6 +59,7 @@ app.use('/api/notifications', requireAuth, notificationsRouter);
 app.use('/api/audit', requireAuth, auditRouter);
 app.use('/api/reports', requireAuth, reportsRouter);
 app.use('/api/tasks', requireAuth, tasksRouter);
+app.use('/api/legal-updates', requireAuth, legalRouter);
 
 app.use(notFound);
 app.use(errorHandler);

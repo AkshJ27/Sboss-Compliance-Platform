@@ -12,6 +12,8 @@ export type Storage = {
     signedUrl(key: string, fileName: string, contentType: string, ttlSeconds: number): Promise<string | null>;
     // Local disk only
     read(key: string): Readable;
+    // The whole file, from either place (files here are at most 10 MB)
+    get(key: string): Promise<Buffer>;
 };
 
 // encodeURIComponent leaves some characters that are not allowed in a header value
@@ -41,6 +43,9 @@ function local(): Storage {
         },
         read(key) {
             return createReadStream(fullPath(key));
+        },
+        get(key) {
+            return fs.readFile(fullPath(key));
         },
     };
 }
@@ -78,6 +83,11 @@ function s3(): Storage {
         },
         read() {
             throw new Error('Files are served directly from S3');
+        },
+        async get(key) {
+            const out = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+            if (!out.Body) throw new Error('File not found');
+            return Buffer.from(await out.Body.transformToByteArray());
         },
     };
 }
