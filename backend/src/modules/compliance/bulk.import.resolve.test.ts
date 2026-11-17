@@ -205,15 +205,13 @@ describe('resolveRows', () => {
         ]);
     });
 
-    it('a high-risk compliance needs an approver', () => {
+    it('a high-risk compliance may have no approver, as in Complinity', () => {
         const lk = lookups({ compliances: new Map([['H1', comp('H1', { risk: 'HIGH' })]]) });
-        expect(resolveRows([raw({ code: 'H1' })], lk, null).errors).toEqual([
-            { row: 1, field: 'approver email', message: 'This is a high-risk compliance, so it needs an approver' },
-        ]);
+        expect(resolveRows([raw({ code: 'H1' })], lk, null).errors).toEqual([]);
         expect(resolveRows([raw({ code: 'H1', approver: 'approver@x.com' })], lk, null).errors).toEqual([]);
     });
 
-    it('does not add a missing-approver complaint when the approver email is unknown', () => {
+    it('reports an unknown approver email once', () => {
         const lk = lookups({ compliances: new Map([['H1', comp('H1', { risk: 'HIGH' })]]) });
         const r = resolveRows([raw({ code: 'H1', approver: 'nobody@x.com' })], lk, null);
         expect(r.errors).toHaveLength(1);

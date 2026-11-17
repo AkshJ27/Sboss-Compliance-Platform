@@ -163,7 +163,7 @@ export function ScheduleImportTab() {
                 <Space direction="vertical" size="small" style={{ width: '100%' }}>
                     <Typography.Paragraph style={{ margin: 0 }}>
                         Each row creates one schedule. Required columns: <b>entity</b>, <b>location</b>, <b>compliance code</b>,{' '}
-                        <b>owner email</b> and <b>manager email</b>. Optional: <b>approver email</b> (required for high-risk laws),{' '}
+                        <b>owner email</b> and <b>manager email</b>. Optional: <b>approver email</b> (gives the final approval after the manager),{' '}
                         <b>department</b>, <b>vertical</b> and <b>start date</b>.
                     </Typography.Paragraph>
                     <Typography.Paragraph type="secondary" style={{ margin: 0 }}>

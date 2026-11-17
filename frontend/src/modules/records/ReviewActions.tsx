@@ -14,8 +14,8 @@ export function ReviewActions({ record, stage, notify }: Props) {
     const [remarks, setRemarks] = useState('');
     const [busy, setBusy] = useState(false);
 
-    const sendsOn = stage === 'MANAGER' && (record.requiresApprover || !!record.approver);
-    const noApprover = sendsOn && !record.approver;
+    // With an approver, the manager's approval sends it on to them. Without one, it closes the item.
+    const sendsOn = stage === 'MANAGER' && !!record.approver;
 
     const close = () => {
         setMode(null);
@@ -54,19 +54,11 @@ export function ReviewActions({ record, stage, notify }: Props) {
     return (
         <Card size="small" title={stage === 'MANAGER' ? 'Your review' : 'Your final approval'}>
             <Space direction="vertical" style={{ width: '100%' }}>
-                {noApprover && (
-                    <Alert
-                        type="warning"
-                        showIcon
-                        message="This high-risk item has no approver"
-                        description="Ask an admin to assign one before you approve. You can still return it."
-                    />
-                )}
                 {sendsOn && record.approver && (
                     <Alert type="info" showIcon message={`After your approval it goes to ${record.approver.name} for final approval.`} />
                 )}
                 <Space>
-                    <Button type="primary" disabled={noApprover} onClick={() => setMode('approve')}>
+                    <Button type="primary" onClick={() => setMode('approve')}>
                         {sendsOn ? 'Approve and send on' : 'Approve'}
                     </Button>
                     <Button danger onClick={() => setMode('return')}>

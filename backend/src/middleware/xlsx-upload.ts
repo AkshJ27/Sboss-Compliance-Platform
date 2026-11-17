@@ -24,3 +24,30 @@ export const xlsxUpload: RequestHandler = (req, res, next) => {
         next(err);
     });
 };
+
+// Several Excel files at once, in the "files" field: for exports that come one period per file
+const manyUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 15 * 1024 * 1024, files: 6, fields: 5 },
+    fileFilter: (_req, file, cb) => {
+        if (!file.originalname.toLowerCase().endsWith('.xlsx')) {
+            cb(new HttpError(400, `${file.originalname} is not an Excel workbook (.xlsx)`));
+            return;
+        }
+        cb(null, true);
+    },
+});
+
+export const xlsxFilesUpload: RequestHandler = (req, res, next) => {
+    manyUpload.array('files', 6)(req, res, (err: unknown) => {
+        if (err instanceof multer.MulterError) {
+            const message =
+                err.code === 'LIMIT_FILE_SIZE' ? 'A file is too large (max 15 MB each)'
+                    : err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE' ? 'Upload at most 6 files'
+                        : 'Invalid upload';
+            next(new HttpError(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400, message));
+            return;
+        }
+        next(err);
+    });
+};

@@ -380,7 +380,7 @@ export default function UsersPage() {
                 columns={columns}
                 dataSource={q.data ?? []}
                 loading={q.isFetching}
-                scroll={{ x: 1100 }}
+                scroll={{ x: 1450 }}
                 pagination={{ pageSize: 25, hideOnSinglePage: true }}
             />
             {uploading && <UsersUploadModal onClose={() => setUploading(false)} />}

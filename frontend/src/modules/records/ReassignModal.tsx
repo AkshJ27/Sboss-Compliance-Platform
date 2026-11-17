@@ -100,7 +100,7 @@ export function ReassignModal({ record, open, onClose, notify }: Props) {
                     <Select showSearch optionFilterProp="label" style={{ width: '100%' }} value={managerId} options={options} loading={users.isLoading} onChange={setManagerId} />,
                 )}
                 {field(
-                    record.requiresApprover ? 'Approver (required for a high-risk item)' : 'Approver',
+                    'Approver (optional)',
                     <Select
                         showSearch
                         optionFilterProp="label"
@@ -108,7 +108,7 @@ export function ReassignModal({ record, open, onClose, notify }: Props) {
                         value={approverId}
                         options={options}
                         loading={users.isLoading}
-                        allowClear={!record.requiresApprover}
+                        allowClear
                         onChange={(v: string | undefined) => setApproverId(v ?? null)}
                         placeholder="No approver"
                     />,

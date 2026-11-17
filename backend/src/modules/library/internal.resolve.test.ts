@@ -78,7 +78,7 @@ describe('resolveInternalRows', () => {
         expect(same.errors[0]).toMatchObject({ field: 'manager email' });
 
         const high = resolveInternalRows([raw({ risk: 'HIGH' })], lookups());
-        expect(high.errors[0]).toMatchObject({ field: 'approval level 1 email' });
+        expect(high.errors).toEqual([]); // an approver is optional, whatever the risk
 
         const ok = resolveInternalRows([raw({ risk: 'HIGH', approver: 'approver@x.com' })], lookups());
         expect(ok.errors).toEqual([]);

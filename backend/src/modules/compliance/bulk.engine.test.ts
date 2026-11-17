@@ -43,28 +43,20 @@ describe('effectivePeople', () => {
 
 describe('peopleProblem', () => {
     it('accepts three different people', () => {
-        expect(peopleProblem(people(), true)).toBeNull();
+        expect(peopleProblem(people())).toBeNull();
     });
 
     it('refuses the same owner and manager', () => {
-        expect(peopleProblem(people({ managerId: 'owner' }), false)).toBe('SAME_OWNER_MANAGER');
+        expect(peopleProblem(people({ managerId: 'owner' }))).toBe('SAME_OWNER_MANAGER');
     });
 
     it('refuses an approver who is also the owner or the manager', () => {
-        expect(peopleProblem(people({ approverId: 'owner' }), false)).toBe('APPROVER_NOT_DISTINCT');
-        expect(peopleProblem(people({ approverId: 'manager' }), false)).toBe('APPROVER_NOT_DISTINCT');
+        expect(peopleProblem(people({ approverId: 'owner' }))).toBe('APPROVER_NOT_DISTINCT');
+        expect(peopleProblem(people({ approverId: 'manager' }))).toBe('APPROVER_NOT_DISTINCT');
     });
 
-    it('a high-risk item needs an approver', () => {
-        expect(peopleProblem(people({ approverId: null }), true)).toBe('HIGH_RISK_NO_APPROVER');
-    });
-
-    it('a lower-risk item may have none', () => {
-        expect(peopleProblem(people({ approverId: null }), false)).toBeNull();
-    });
-
-    it('reports the same person before the missing approver', () => {
-        expect(peopleProblem(people({ managerId: 'owner', approverId: null }), true)).toBe('SAME_OWNER_MANAGER');
+    it('an approver is optional, whatever the risk', () => {
+        expect(peopleProblem(people({ approverId: null }))).toBeNull();
     });
 });
 

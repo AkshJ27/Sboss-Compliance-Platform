@@ -8,6 +8,7 @@ import { COMPARE_KEYS } from './library.schema';
 import type { ParsedRow } from './import.parser';
 
 const IMPORT_KEYS = [...COMPARE_KEYS, 'actId', 'ruleId', 'natureId', 'typeId'];
+const EXTRA_KEYS = ['applicability', 'proofOfCompliance', 'alertOwnerDays', 'alertManagerDays'];
 const BATCH = 1000;
 
 const key = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -123,6 +124,11 @@ export async function planImport(rows: ParsedRow[]) {
             penalty: d.penalty ?? null,
             imprisonment: d.imprisonment ?? false,
             isActive: d.isActive ?? true,
+            // Only when the file has them, so an upload without these columns never clears them
+            ...(d.applicability !== undefined ? { applicability: d.applicability } : {}),
+            ...(d.proofOfCompliance !== undefined ? { proofOfCompliance: d.proofOfCompliance } : {}),
+            ...(d.alertOwnerDays !== undefined ? { alertOwnerDays: d.alertOwnerDays } : {}),
+            ...(d.alertManagerDays !== undefined ? { alertManagerDays: d.alertManagerDays } : {}),
         } as const;
 
         const current = byCode.get(d.code);
@@ -131,7 +137,8 @@ export async function planImport(rows: ParsedRow[]) {
             continue;
         }
 
-        const changes = changedFields(current, data, IMPORT_KEYS) as Record<string, unknown>;
+        const keys = [...IMPORT_KEYS, ...EXTRA_KEYS.filter((k) => k in data)];
+        const changes = changedFields(current, data, keys) as Record<string, unknown>;
         if (Object.keys(changes).length === 0) {
             unchanged++;
         } else {

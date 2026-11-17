@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { HttpError } from '../../lib/errors';
 import { getUser } from '../../middleware/auth';
 import { csvUpload } from '../../middleware/csv-upload';
+import { xlsxUpload } from '../../middleware/xlsx-upload';
 import { requirePlatformAdmin } from '../../middleware/platform-admin';
 import * as s from './library.schema';
 import * as lib from './library.service';
 import { parseCsv } from './import.parser';
 import { planImport, commitImport } from './import.service';
+import { importComplinityLibrary } from './complinity.service';
 import { notifyLawChange } from '../notifications/law-change.notify';
 import { internalRouter } from './internal.routes';
 import { mastersRouter } from './masters.routes';
@@ -78,4 +80,13 @@ libraryRouter.post('/import', requirePlatformAdmin, csvUpload, async (req, res) 
     await commitImport(getUser(req), plan);
     void notifyLawChange(plan.updates.map((u) => u.id)).catch((e) => console.error('[law-change] could not notify', e));
     res.status(201).json(body);
+});
+
+
+// Complinity's compliance details export (.xlsx) as it is: mapped, unmapped and inactivated compliances
+libraryRouter.post('/import-complinity', requirePlatformAdmin, xlsxUpload, async (req, res) => {
+    const { dryRun } = s.importQuerySchema.parse(req.query);
+    if (!req.file) throw new HttpError(400, 'Attach the Excel file in the "file" field');
+    const out = await importComplinityLibrary(getUser(req), req.file.buffer, dryRun);
+    res.status(out.ok ? (dryRun ? 200 : 201) : 422).json(out);
 });

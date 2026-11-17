@@ -21,17 +21,24 @@ type Summary = {
     newActs: number;
     newRules: number;
     sampleUpdates: { code: string; changed: string[] }[];
+    mapped?: number; // Complinity export only: compliances mapped to the company there
+    inactive?: number;
+    warnings?: string[];
 };
 type RowError = { row: number; field?: string; message: string };
-type Failure = { ok: false; errorCount: number; errors: RowError[]; ignoredColumns: string[] };
+type Failure = { ok: false; errorCount: number; errors: RowError[]; ignoredColumns: string[]; fileErrors?: string[]; warnings?: string[] };
 type Outcome = Summary | Failure;
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null;
+const isFailure = (o: Outcome | null): o is Failure => o !== null && o.ok === false;
+const isSummary = (o: Outcome | null): o is Summary => o !== null && o.ok === true;
 
 async function send(file: File, dryRun: boolean): Promise<Outcome> {
     const form = new FormData();
     form.append('file', file);
-    const res = await apiRaw(`/library/import?dryRun=${dryRun}`, { method: 'POST', form });
+    // A CSV in this app's format, or Complinity's compliance details export (.xlsx) as it is
+    const path = file.name.toLowerCase().endsWith('.xlsx') ? '/library/import-complinity' : '/library/import';
+    const res = await apiRaw(`${path}?dryRun=${dryRun}`, { method: 'POST', form });
 
     let data: unknown = null;
     try {
@@ -63,7 +70,7 @@ export function ImportTab() {
         try {
             const result = await send(file, dryRun);
             setOutcome(result);
-            if (result.ok && !result.dryRun) await qc.invalidateQueries({ queryKey: ['library'] });
+            if (isSummary(result) && !result.dryRun) await qc.invalidateQueries({ queryKey: ['library'] });
         } catch (e) {
             setOutcome(null);
             setError(errorText(e));
@@ -73,8 +80,9 @@ export function ImportTab() {
     };
 
     const fileList: UploadFile[] = file ? [{ uid: 'file', name: file.name, status: 'done' }] : [];
-    const readyToImport =
-        outcome?.ok === true && outcome.dryRun && outcome.compliancesNew + outcome.compliancesUpdated > 0;
+    const summary = isSummary(outcome) ? outcome : null;
+    const failure = isFailure(outcome) ? outcome : null;
+    const readyToImport = !!summary && summary.dryRun && summary.compliancesNew + summary.compliancesUpdated > 0;
 
     return (
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -85,10 +93,14 @@ export function ImportTab() {
                     &quot;Law Category&quot; and &quot;law_category&quot; both work. Each code is permanent: re-importing a code updates
                     that item. Format any code column as Text first, or Excel may turn long numbers into 1.2E+10.
                 </Typography.Paragraph>
+                <Typography.Paragraph style={{ margin: '8px 0 0' }}>
+                    <b>From Complinity:</b> upload the compliance details export (.xlsx) as it is. Its mapped, unmapped and inactivated
+                    sheets are all read, and Complinity&apos;s Compliance ID becomes each item&apos;s code.
+                </Typography.Paragraph>
             </Card>
 
             <Upload
-                accept=".csv"
+                accept=".csv,.xlsx"
                 maxCount={1}
                 fileList={fileList}
                 beforeUpload={(f) => {
@@ -103,7 +115,7 @@ export function ImportTab() {
                     setError(null);
                 }}
             >
-                <Button icon={<UploadOutlined />}>Choose a CSV file</Button>
+                <Button icon={<UploadOutlined />}>Choose a CSV or Complinity Excel file</Button>
             </Upload>
 
             <Space>
@@ -118,21 +130,27 @@ export function ImportTab() {
             </Space>
 
             {error && <Alert type="error" showIcon message={error} />}
+            {outcome?.warnings?.map((w) => (
+                <Alert key={w} type="warning" showIcon message={w} />
+            ))}
 
-            {outcome && !outcome.ok && (
-                <Card size="small" title={`${outcome.errorCount} problem${outcome.errorCount === 1 ? '' : 's'} found. Nothing was imported.`}>
-                    {outcome.ignoredColumns.length > 0 && (
+            {failure && (
+                <Card size="small" title={`${failure.errorCount + (failure.fileErrors?.length ?? 0)} problem(s) found. Nothing was imported.`}>
+                    {failure.fileErrors?.map((m) => (
+                        <Alert key={m} type="error" showIcon message={m} style={{ marginBottom: 12 }} />
+                    ))}
+                    {failure.ignoredColumns.length > 0 && (
                         <Alert
                             type="info"
                             showIcon
                             style={{ marginBottom: 12 }}
-                            message={`Columns that were not recognised and ignored: ${outcome.ignoredColumns.join(', ')}`}
+                            message={`Columns that were not recognised and ignored: ${failure.ignoredColumns.join(', ')}`}
                         />
                     )}
                     <Table<RowError>
                         size="small"
                         rowKey={(r) => `${r.row}:${r.field ?? ''}:${r.message}`}
-                        dataSource={outcome.errors}
+                        dataSource={failure.errors}
                         pagination={{ pageSize: 20, hideOnSinglePage: true }}
                         columns={[
                             { title: 'Row', dataIndex: 'row', key: 'row', width: 80 },
@@ -140,52 +158,58 @@ export function ImportTab() {
                             { title: 'Problem', dataIndex: 'message', key: 'message' },
                         ]}
                     />
-                    {outcome.errorCount > outcome.errors.length && (
-                        <Typography.Text type="secondary">Showing the first {outcome.errors.length}. Fix these and preview again.</Typography.Text>
+                    {failure.errorCount > failure.errors.length && (
+                        <Typography.Text type="secondary">Showing the first {failure.errors.length}. Fix these and preview again.</Typography.Text>
                     )}
                     <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
-                        Row 1 is the first row under the header.
+                        For a CSV, row 1 is the first row under the header. For an Excel file, row numbers match Excel.
                     </Typography.Paragraph>
                 </Card>
             )}
 
-            {outcome?.ok && (
+            {summary && (
                 <Card
                     size="small"
-                    title={outcome.dryRun ? 'Preview: this is what the import would do' : 'Imported'}
+                    title={summary.dryRun ? 'Preview: this is what the import would do' : 'Imported'}
                 >
                     <Space direction="vertical" style={{ width: '100%' }}>
-                        {!outcome.dryRun && <Alert type="success" showIcon message="The library was updated." />}
-                        {outcome.ignoredColumns.length > 0 && (
+                        {!summary.dryRun && <Alert type="success" showIcon message="The library was updated." />}
+                        {summary.ignoredColumns.length > 0 && (
                             <Alert
                                 type="info"
                                 showIcon
-                                message={`Columns that were not recognised and ignored: ${outcome.ignoredColumns.join(', ')}`}
+                                message={`Columns that were not recognised and ignored: ${summary.ignoredColumns.join(', ')}`}
                             />
                         )}
                         <Row gutter={[12, 12]}>
                             <Col xs={12} md={6}>
-                                <Statistic title="Rows" value={outcome.totalRows} />
+                                <Statistic title="Rows" value={summary.totalRows} />
                             </Col>
                             <Col xs={12} md={6}>
-                                <Statistic title="New" value={outcome.compliancesNew} valueStyle={{ color: '#389e0d' }} />
+                                <Statistic title="New" value={summary.compliancesNew} valueStyle={{ color: '#389e0d' }} />
                             </Col>
                             <Col xs={12} md={6}>
-                                <Statistic title="Updated" value={outcome.compliancesUpdated} valueStyle={{ color: '#d46b08' }} />
+                                <Statistic title="Updated" value={summary.compliancesUpdated} valueStyle={{ color: '#d46b08' }} />
                             </Col>
                             <Col xs={12} md={6}>
-                                <Statistic title="Unchanged" value={outcome.compliancesUnchanged} />
+                                <Statistic title="Unchanged" value={summary.compliancesUnchanged} />
                             </Col>
                         </Row>
+                        {summary.mapped !== undefined && (
+                            <Typography.Text>
+                                Mapped to your company in Complinity: <b>{summary.mapped}</b>. Inactive: <b>{summary.inactive ?? 0}</b>. Assigning
+                                them to people comes next, with Complinity&apos;s assignment data.
+                            </Typography.Text>
+                        )}
                         <Typography.Text type="secondary">
-                            New Acts {outcome.newActs}, rules {outcome.newRules}, law categories {outcome.newLawCategories}, authorities{' '}
-                            {outcome.newStatutoryAuthorities}, natures {outcome.newNatures}, types {outcome.newTypes}.
+                            New Acts {summary.newActs}, rules {summary.newRules}, law categories {summary.newLawCategories}, authorities{' '}
+                            {summary.newStatutoryAuthorities}, natures {summary.newNatures}, types {summary.newTypes}.
                         </Typography.Text>
-                        {outcome.sampleUpdates.length > 0 && (
+                        {summary.sampleUpdates.length > 0 && (
                             <Table
                                 size="small"
                                 rowKey="code"
-                                dataSource={outcome.sampleUpdates}
+                                dataSource={summary.sampleUpdates}
                                 pagination={false}
                                 columns={[
                                     { title: 'Updated item', dataIndex: 'code', key: 'code', width: 180 },
@@ -193,7 +217,7 @@ export function ImportTab() {
                                 ]}
                             />
                         )}
-                        {outcome.dryRun && outcome.compliancesNew + outcome.compliancesUpdated === 0 && (
+                        {summary.dryRun && summary.compliancesNew + summary.compliancesUpdated === 0 && (
                             <Alert type="info" showIcon message="Nothing to import. Every row matches what is already in the library." />
                         )}
                     </Space>

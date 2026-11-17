@@ -157,13 +157,12 @@ export async function replicate(actor: AuthUser, input: ReplicateInput, dryRun: 
         const problems: Record<PeopleProblem, number> = {
             SAME_OWNER_MANAGER: 0,
             APPROVER_NOT_DISTINCT: 0,
-            HIGH_RISK_NO_APPROVER: 0,
         };
         for (const s of union.values()) {
             const p = effectivePeople(s.schedule, override);
             peopleIds.push(p.ownerId, p.managerId);
             if (p.approverId) peopleIds.push(p.approverId);
-            const problem = peopleProblem(p, s.risk === 'HIGH');
+            const problem = peopleProblem(p);
             if (problem) problems[problem]++;
         }
 
@@ -186,12 +185,7 @@ export async function replicate(actor: AuthUser, input: ReplicateInput, dryRun: 
                 `${problems.APPROVER_NOT_DISTINCT} compliance(s) would have an approver who is also the owner or manager. Choose different people.`,
             );
         }
-        if (problems.HIGH_RISK_NO_APPROVER > 0) {
-            throw new HttpError(
-                400,
-                `${problems.HIGH_RISK_NO_APPROVER} high-risk compliance(s) would have no approver. Choose an approver.`,
-            );
-        }
+
     }
 
     const unionList = [...union.values()].sort((a, b) =>

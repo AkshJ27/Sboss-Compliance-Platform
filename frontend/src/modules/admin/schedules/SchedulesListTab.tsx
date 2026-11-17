@@ -43,7 +43,6 @@ type ModalProps = {
 
 function PeopleModal({ row, options, busy, onSave, onCancel }: ModalProps) {
     const [form] = Form.useForm<PeopleValues>();
-    const highRisk = row.compliance.risk === 'HIGH';
     return (
         <Modal
             open
@@ -74,12 +73,8 @@ function PeopleModal({ row, options, busy, onSave, onCancel }: ModalProps) {
                 <Form.Item label="Manager" name="managerId" rules={[{ required: true }]}>
                     <Select showSearch optionFilterProp="label" options={options} />
                 </Form.Item>
-                <Form.Item
-                    label={highRisk ? 'Approver (required for a high-risk item)' : 'Approver'}
-                    name="approverId"
-                    rules={highRisk ? [{ required: true, message: 'A high-risk item needs an approver' }] : []}
-                >
-                    <Select allowClear={!highRisk} showSearch optionFilterProp="label" options={options} placeholder="No approver" />
+                <Form.Item label="Approver (optional)" name="approverId" extra="Gives the final approval after the manager.">
+                    <Select allowClear showSearch optionFilterProp="label" options={options} placeholder="No approver" />
                 </Form.Item>
                 <Form.Item name="applyToOpenInstances" valuePropName="checked">
                     <Checkbox>Also move items that are still due or returned</Checkbox>

@@ -83,7 +83,7 @@ const PEOPLE_ERROR: Record<PeopleProblem, { key: ColumnKey; message: string }> =
         key: 'approver',
         message: 'The approver must be a different person from the owner and manager',
     },
-    HIGH_RISK_NO_APPROVER: { key: 'approver', message: 'This is a high-risk compliance, so it needs an approver' },
+
 };
 
 export function resolveRows(rows: readonly RawRow[], lk: Lookups, defaultStart: string | null) {
@@ -151,10 +151,7 @@ export function resolveRows(rows: readonly RawRow[], lk: Lookups, defaultStart: 
 
         // Only judge the combination when every person was found, so one mistake is not reported twice
         if (owner && manager && (!r.approver || approver)) {
-            const problem = peopleProblem(
-                { ownerId: owner.id, managerId: manager.id, approverId: approver ? approver.id : null },
-                c?.risk === 'HIGH',
-            );
+            const problem = peopleProblem({ ownerId: owner.id, managerId: manager.id, approverId: approver ? approver.id : null });
             if (problem) fail(PEOPLE_ERROR[problem].key, PEOPLE_ERROR[problem].message);
         }
 

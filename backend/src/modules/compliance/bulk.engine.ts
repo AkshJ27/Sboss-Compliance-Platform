@@ -25,14 +25,14 @@ export function collides(p: People): boolean {
     return p.approverId !== null && (p.approverId === p.ownerId || p.approverId === p.managerId);
 }
 
-export type PeopleProblem = 'SAME_OWNER_MANAGER' | 'APPROVER_NOT_DISTINCT' | 'HIGH_RISK_NO_APPROVER';
+export type PeopleProblem = 'SAME_OWNER_MANAGER' | 'APPROVER_NOT_DISTINCT';
 
-export function peopleProblem(p: People, highRisk: boolean): PeopleProblem | null {
+// An approver is optional, as in Complinity: without one, the manager's approval closes the item
+export function peopleProblem(p: People): PeopleProblem | null {
     if (p.ownerId === p.managerId) return 'SAME_OWNER_MANAGER';
     if (p.approverId !== null && (p.approverId === p.ownerId || p.approverId === p.managerId)) {
         return 'APPROVER_NOT_DISTINCT';
     }
-    if (highRisk && p.approverId === null) return 'HIGH_RISK_NO_APPROVER';
     return null;
 }
 

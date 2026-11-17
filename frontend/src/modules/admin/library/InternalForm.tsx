@@ -308,7 +308,7 @@ export function AddInternalModal({ open, onClose, onCreated }: { open: boolean; 
 
                 <Row gutter={12}>
                     <Col xs={24} md={12}>
-                        <Form.Item name="approver" label="Approver" tooltip="Needed for high-risk items">
+                        <Form.Item name="approver" label="Approver" tooltip="Optional. Gives the final approval after the manager.">
                             <Select allowClear showSearch optionFilterProp="label" options={people} />
                         </Form.Item>
                     </Col>

@@ -107,9 +107,7 @@ export async function activate(actor: AuthUser, input: ActivateInput, dryRun: bo
     const toCreate = applicable.filter((c) => !existingIds.has(c.id));
 
     const highRisk = toCreate.filter((c) => c.risk === 'HIGH').length;
-    if (highRisk > 0 && !input.approverId) {
-        throw new HttpError(400, `${highRisk} high-risk compliance(s) need an approver. Choose an approver.`);
-    }
+
 
     const foundIds = new Set(found.map((c) => c.id));
     const foundActIds = new Set(found.map((c) => c.act.id));
@@ -254,9 +252,7 @@ export async function updateSchedule(actor: AuthUser, id: string, input: Schedul
         if (approverId && (approverId === ownerId || approverId === managerId)) {
             throw new HttpError(400, 'The approver must be a different person from the owner and manager');
         }
-        if (before.compliance.risk === 'HIGH' && !approverId && input.isActive !== false) {
-            throw new HttpError(400, 'A high-risk compliance needs an approver');
-        }
+
         await assertAssignees(tx, actor.orgId, [input.ownerId, input.managerId, input.approverId]);
 
         if (

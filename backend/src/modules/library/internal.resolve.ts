@@ -101,13 +101,9 @@ export function resolveInternalRows(rows: readonly InternalRawRow[], lk: Interna
 
         // Only judge the combination when every person was found, so one mistake is not reported twice
         if (owner && manager && (!r.approver || approver)) {
-            const problem = peopleProblem(
-                { ownerId: owner.id, managerId: manager.id, approverId: approver ? approver.id : null },
-                r.risk === 'HIGH',
-            );
+            const problem = peopleProblem({ ownerId: owner.id, managerId: manager.id, approverId: approver ? approver.id : null });
             if (problem === 'SAME_OWNER_MANAGER') fail('manager', 'Owner and manager must be different people');
             else if (problem === 'APPROVER_NOT_DISTINCT') fail('approver', 'The approver must be different from the owner and manager');
-            else if (problem === 'HIGH_RISK_NO_APPROVER') fail('approver', 'High-risk items need an approver in Approval Level 1');
         }
 
         let lawCategoryName = DEFAULT_LAW_CATEGORY;

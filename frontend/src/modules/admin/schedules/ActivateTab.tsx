@@ -270,7 +270,7 @@ export function ActivateTab({ onDone }: { onDone: () => void }) {
                         </Form.Item>
                     </Col>
                     <Col xs={24} md={8}>
-                        <Form.Item label="Approver" name="approverId" extra="Filled in from the owner's default approver. Required when any chosen item is high risk.">
+                        <Form.Item label="Approver" name="approverId" extra="Optional. Filled in from the owner's default approver. They give the final approval after the manager.">
                             <Select allowClear showSearch optionFilterProp="label" options={people} placeholder="Final sign-off" />
                         </Form.Item>
                     </Col>

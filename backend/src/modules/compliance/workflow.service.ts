@@ -221,11 +221,8 @@ export async function approve(actor: AuthUser, id: string, remarks?: string) {
         const inst = await load(tx, actor, id);
         const stage = reviewStage(inst, actor);
 
-        // An item with an approver goes on to them after the manager. High-risk items must have one.
-        if (stage === 'MANAGER' && (inst.requiresApprover || inst.approverId)) {
-            if (!inst.approverId) {
-                throw new HttpError(409, 'This high-risk item needs an approver. Ask an admin to assign one.');
-            }
+        // An item with an approver goes on to them after the manager. Without one, the manager's approval closes it.
+        if (stage === 'MANAGER' && inst.approverId) {
             await change(
                 tx,
                 actor,
@@ -291,9 +288,7 @@ export async function reassign(actor: AuthUser, id: string, input: AssigneesInpu
         if (approverId && (approverId === ownerId || approverId === managerId)) {
             throw new HttpError(400, 'The approver must be a different person from the owner and manager');
         }
-        if (inst.requiresApprover && !approverId) {
-            throw new HttpError(400, 'A high-risk item needs an approver');
-        }
+
         await assertAssignees(tx, actor.orgId, [input.ownerId, input.managerId, input.approverId]);
 
         // Someone who already handled the item can't end up reviewing it

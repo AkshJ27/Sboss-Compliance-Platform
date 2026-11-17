@@ -33,6 +33,10 @@ const ALIASES: Record<string, string[]> = {
     penalty: ['penalty', 'penaltydescription'],
     imprisonment: ['imprisonment', 'imprisonmentapplicable'],
     isActive: ['isactive', 'active'],
+    applicability: ['applicability'],
+    proofOfCompliance: ['proofofcompliance', 'proof'],
+    alertOwnerDays: ['alertownerdays', 'alertowner'],
+    alertManagerDays: ['alertmanagerdays', 'alertmanager'],
 };
 
 const REQUIRED = ['code', 'act', 'lawCategory', 'jurisdiction', 'title', 'frequency'];
@@ -122,6 +126,10 @@ const rowSchema = z
         penalty: optText(2000),
         imprisonment: boolField('Imprisonment'),
         isActive: boolField('Active'),
+        applicability: optText(5000),
+        proofOfCompliance: optText(2000),
+        alertOwnerDays: intField(0, 999, 'Alert owner days'),
+        alertManagerDays: intField(0, 999, 'Alert manager days'),
     })
     .superRefine((r, ctx) => {
         if (r.jurisdiction === 'STATE' && !r.state) {

@@ -1,5 +1,6 @@
 import { Space, Tabs, Typography } from 'antd';
 import { ModuleBoundary } from '../../../app/ModuleBoundary';
+import { ComplinityImportTab } from './ComplinityImportTab';
 import { ReplicateTab } from './ReplicateTab';
 import { ScheduleImportTab } from './ScheduleImportTab';
 import { SwapTab } from './SwapTab';
@@ -30,6 +31,15 @@ export default function BulkToolsPage() {
                         children: (
                             <ModuleBoundary compact label="This tab">
                                 <SwapTab />
+                            </ModuleBoundary>
+                        ),
+                    },
+                    {
+                        key: 'complinity',
+                        label: 'From Complinity',
+                        children: (
+                            <ModuleBoundary compact label="This tab">
+                                <ComplinityImportTab />
                             </ModuleBoundary>
                         ),
                     },
