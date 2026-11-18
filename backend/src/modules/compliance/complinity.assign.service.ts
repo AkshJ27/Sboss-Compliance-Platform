@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import { recordAudit } from '../../lib/audit';
 import { chunks } from '../../lib/chunks';
@@ -9,10 +10,10 @@ import { planComplinityAssignments, readDashboardData } from './complinity.assig
 import type { ComplianceRef, RowError, Sheet } from './complinity.assign';
 
 const MAX_ERRORS_SHOWN = 200;
-const TX = { timeout: 10 * 60 * 1000, maxWait: 10_000 };
+export const TX = { timeout: 10 * 60 * 1000, maxWait: 10_000 };
 const key = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
-async function readFirstSheet(name: string, buffer: Buffer): Promise<Sheet> {
+export async function readFirstSheet(name: string, buffer: Buffer): Promise<Sheet> {
     const wb = new ExcelJS.Workbook();
     try {
         await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer);
@@ -30,7 +31,7 @@ async function readFirstSheet(name: string, buffer: Buffer): Promise<Sheet> {
     return { name, grid };
 }
 
-const failure = (errors: RowError[], fileErrors: string[], warnings: string[]) => ({
+export const failure = (errors: RowError[], fileErrors: string[], warnings: string[]) => ({
     ok: false as const,
     fileErrors,
     errorCount: errors.length,
@@ -38,7 +39,7 @@ const failure = (errors: RowError[], fileErrors: string[], warnings: string[]) =
     warnings,
 });
 
-async function lookups(orgId: string, codes: string[]) {
+export async function lookups(orgId: string, codes: string[]) {
     const named = { where: { orgId }, select: { id: true, name: true } };
     const [entities, departments, verticals, locationTypes, locations, users, compliances] = await Promise.all([
         prisma.entity.findMany({ where: { orgId }, select: { id: true, name: true, code: true } }),
@@ -71,6 +72,106 @@ async function lookups(orgId: string, codes: string[]) {
         select: { id: true, locationId: true, complianceId: true, ownerId: true, managerId: true, approverId: true, departmentId: true, verticalId: true, isActive: true },
     });
     return { entities, departments, verticals, locationTypes, locations, users, compliances: byCode, schedules };
+}
+
+type Plan = ReturnType<typeof planComplinityAssignments>;
+type Tx = Prisma.TransactionClient;
+
+// Adds the masters a plan needs, then its new assignments, and updates the changed ones
+export async function saveAssignmentPlan(
+    tx: Tx,
+    orgId: string,
+    plan: Plan,
+    toCreate: Plan['planned'],
+    toUpdate: Plan['planned'],
+    startDateText: string,
+) {
+    const m = plan.masters;
+    if (m.entities.length) await tx.entity.createMany({ data: m.entities.map((e) => ({ orgId, name: e.name, code: e.code })) });
+    if (m.departments.length) await tx.department.createMany({ data: m.departments.map((name) => ({ orgId, name })) });
+    if (m.verticals.length) await tx.vertical.createMany({ data: m.verticals.map((name) => ({ orgId, name })) });
+    if (m.locationTypes.length) await tx.locationType.createMany({ data: m.locationTypes.map((name) => ({ orgId, name })) });
+
+    const idMap = async () => {
+        const named = { where: { orgId }, select: { id: true, name: true } };
+        const [e, d, v, t] = await Promise.all([
+            tx.entity.findMany(named),
+            tx.department.findMany(named),
+            tx.vertical.findMany(named),
+            tx.locationType.findMany(named),
+        ]);
+        const map = (list: { id: string; name: string }[]) => new Map(list.map((x) => [key(x.name), x.id]));
+        return { entity: map(e), department: map(d), vertical: map(v), locationType: map(t) };
+    };
+    const ids = await idMap();
+    const must = (map: Map<string, string>, name: string) => {
+        const id = map.get(key(name));
+        if (!id) throw new HttpError(409, `"${name}" changed while uploading. Check again.`);
+        return id;
+    };
+
+    for (const part of chunks(m.locations, 500)) {
+        await tx.location.createMany({
+            data: part.map((l) => ({
+                orgId,
+                entityId: must(ids.entity, l.entity),
+                name: l.name,
+                state: l.state,
+                locationTypeId: l.locationType ? must(ids.locationType, l.locationType) : null,
+            })),
+        });
+    }
+    const locations = await tx.location.findMany({ where: { orgId }, select: { id: true, entityId: true, name: true } });
+    const locationId = new Map(locations.map((l) => [`${l.entityId}|${key(l.name)}`, l.id]));
+    const where = (p: (typeof plan.planned)[number]) => {
+        const entityId = must(ids.entity, p.entity);
+        const id = locationId.get(`${entityId}|${key(p.location.name)}`);
+        if (!id) throw new HttpError(409, `Location "${p.location.name}" changed while uploading. Check again.`);
+        return { entityId, locationId: id };
+    };
+    const people = (p: (typeof plan.planned)[number]) => ({
+        departmentId: p.department ? must(ids.department, p.department) : null,
+        verticalId: p.vertical ? must(ids.vertical, p.vertical) : null,
+        ownerId: p.ownerId,
+        managerId: p.managerId,
+        approverId: p.approverId,
+        isActive: p.isActive,
+    });
+
+    const startDate = parseDateOnly(startDateText);
+    let created = 0;
+    for (const part of chunks(toCreate, 1000)) {
+        const r = await tx.complianceSchedule.createMany({
+            data: part.map((p) => {
+                const c = p.compliance;
+                return {
+                    orgId,
+                    complianceId: c.id,
+                    ...where(p),
+                    ...people(p),
+                    startDate,
+                    // The assignment follows the library as it is today
+                    libraryVersion: c.version,
+                    frequency: c.frequency,
+                    periodBasis: c.periodBasis,
+                    dueDay: c.dueDay,
+                    dueMonthOffset: c.dueMonthOffset,
+                    event: c.event,
+                    dueDaysAfterEvent: c.dueDaysAfterEvent,
+                };
+            }),
+            skipDuplicates: true,
+        });
+        created += r.count;
+    }
+    if (created !== toCreate.length) {
+        throw new HttpError(409, 'Some of these assignments were added by someone else while uploading. Nothing was saved. Check again.');
+    }
+    for (const p of toUpdate) {
+        await tx.complianceSchedule.update({ where: { id: p.existingId as string }, data: people(p) });
+    }
+
+    return created;
 }
 
 /**
@@ -130,98 +231,14 @@ export async function importComplinityAssignments(
     if (opts.dryRun) return summary;
 
     await prisma.$transaction(async (tx) => {
-        const m = plan.masters;
-        if (m.entities.length) await tx.entity.createMany({ data: m.entities.map((e) => ({ orgId, name: e.name, code: e.code })) });
-        if (m.departments.length) await tx.department.createMany({ data: m.departments.map((name) => ({ orgId, name })) });
-        if (m.verticals.length) await tx.vertical.createMany({ data: m.verticals.map((name) => ({ orgId, name })) });
-        if (m.locationTypes.length) await tx.locationType.createMany({ data: m.locationTypes.map((name) => ({ orgId, name })) });
-
-        const idMap = async () => {
-            const named = { where: { orgId }, select: { id: true, name: true } };
-            const [e, d, v, t] = await Promise.all([
-                tx.entity.findMany(named),
-                tx.department.findMany(named),
-                tx.vertical.findMany(named),
-                tx.locationType.findMany(named),
-            ]);
-            const map = (list: { id: string; name: string }[]) => new Map(list.map((x) => [key(x.name), x.id]));
-            return { entity: map(e), department: map(d), vertical: map(v), locationType: map(t) };
-        };
-        const ids = await idMap();
-        const must = (map: Map<string, string>, name: string) => {
-            const id = map.get(key(name));
-            if (!id) throw new HttpError(409, `"${name}" changed while uploading. Check again.`);
-            return id;
-        };
-
-        for (const part of chunks(m.locations, 500)) {
-            await tx.location.createMany({
-                data: part.map((l) => ({
-                    orgId,
-                    entityId: must(ids.entity, l.entity),
-                    name: l.name,
-                    state: l.state,
-                    locationTypeId: l.locationType ? must(ids.locationType, l.locationType) : null,
-                })),
-            });
-        }
-        const locations = await tx.location.findMany({ where: { orgId }, select: { id: true, entityId: true, name: true } });
-        const locationId = new Map(locations.map((l) => [`${l.entityId}|${key(l.name)}`, l.id]));
-        const where = (p: (typeof plan.planned)[number]) => {
-            const entityId = must(ids.entity, p.entity);
-            const id = locationId.get(`${entityId}|${key(p.location.name)}`);
-            if (!id) throw new HttpError(409, `Location "${p.location.name}" changed while uploading. Check again.`);
-            return { entityId, locationId: id };
-        };
-        const people = (p: (typeof plan.planned)[number]) => ({
-            departmentId: p.department ? must(ids.department, p.department) : null,
-            verticalId: p.vertical ? must(ids.vertical, p.vertical) : null,
-            ownerId: p.ownerId,
-            managerId: p.managerId,
-            approverId: p.approverId,
-            isActive: p.isActive,
-        });
-
-        const startDate = parseDateOnly(opts.startDate);
-        let created = 0;
-        for (const part of chunks(toCreate, 1000)) {
-            const r = await tx.complianceSchedule.createMany({
-                data: part.map((p) => {
-                    const c = p.compliance;
-                    return {
-                        orgId,
-                        complianceId: c.id,
-                        ...where(p),
-                        ...people(p),
-                        startDate,
-                        // The assignment follows the library as it is today
-                        libraryVersion: c.version,
-                        frequency: c.frequency,
-                        periodBasis: c.periodBasis,
-                        dueDay: c.dueDay,
-                        dueMonthOffset: c.dueMonthOffset,
-                        event: c.event,
-                        dueDaysAfterEvent: c.dueDaysAfterEvent,
-                    };
-                }),
-                skipDuplicates: true,
-            });
-            created += r.count;
-        }
-        if (created !== toCreate.length) {
-            throw new HttpError(409, 'Some of these assignments were added by someone else while uploading. Nothing was saved. Check again.');
-        }
-        for (const p of toUpdate) {
-            await tx.complianceSchedule.update({ where: { id: p.existingId as string }, data: people(p) });
-        }
-
+        const created = await saveAssignmentPlan(tx, orgId, plan, toCreate, toUpdate, opts.startDate);
         await recordAudit(tx, actor, 'SCHEDULES_IMPORTED', 'Schedule', 'complinity', {
             source: 'Complinity Dashboard Data',
             files: files.map((f) => f.name),
             created,
             updated: toUpdate.length,
             startDate: opts.startDate,
-            newMasters: { ...summary.newMasters, locations: m.locations.length },
+            newMasters: summary.newMasters,
         });
     }, TX);
     return summary;

@@ -10,6 +10,7 @@ import { templateCsv } from './bulk.import.parser';
 import { dryRunQuerySchema } from './compliance.schema';
 import { swap } from './bulk.swap.service';
 import { importComplinityAssignments } from './complinity.assign.service';
+import { importComplinityHistory } from './complinity.history.service';
 
 export const bulkRouter = Router();
 
@@ -59,5 +60,15 @@ bulkRouter.post('/import-complinity', xlsxFilesUpload, async (req, res) => {
         files.map((f) => ({ name: f.originalname, buffer: f.buffer })),
         { dryRun, startDate },
     );
+    res.status(out.ok ? (dryRun ? 200 : 201) : 422).json(out);
+});
+
+
+// Complinity's Dashboard Data exports with every status: the past due items, after the assignments are here
+bulkRouter.post('/import-complinity-history', xlsxFilesUpload, async (req, res) => {
+    const { dryRun } = importQuerySchema.parse(req.query);
+    const files = (req.files as { originalname: string; buffer: Buffer }[] | undefined) ?? [];
+    if (!files.length) throw new HttpError(400, 'Attach the Excel files in the "files" field');
+    const out = await importComplinityHistory(getUser(req), files.map((f) => ({ name: f.originalname, buffer: f.buffer })), { dryRun });
     res.status(out.ok ? (dryRun ? 200 : 201) : 422).json(out);
 });

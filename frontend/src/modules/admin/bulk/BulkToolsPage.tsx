@@ -1,6 +1,7 @@
 import { Space, Tabs, Typography } from 'antd';
 import { ModuleBoundary } from '../../../app/ModuleBoundary';
 import { ComplinityImportTab } from './ComplinityImportTab';
+import { ComplinityHistoryTab } from './ComplinityHistoryTab';
 import { ReplicateTab } from './ReplicateTab';
 import { ScheduleImportTab } from './ScheduleImportTab';
 import { SwapTab } from './SwapTab';
@@ -40,6 +41,15 @@ export default function BulkToolsPage() {
                         children: (
                             <ModuleBoundary compact label="This tab">
                                 <ComplinityImportTab />
+                            </ModuleBoundary>
+                        ),
+                    },
+                    {
+                        key: 'complinity-history',
+                        label: 'Complinity history',
+                        children: (
+                            <ModuleBoundary compact label="This tab">
+                                <ComplinityHistoryTab />
                             </ModuleBoundary>
                         ),
                     },

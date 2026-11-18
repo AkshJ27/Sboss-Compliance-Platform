@@ -247,7 +247,13 @@ export function locationNameFor(a: Pick<Assignment, 'location' | 'vertical'>, en
     return entityHasManyVerticals && a.vertical ? `${a.vertical} - ${a.location}` : a.location;
 }
 
-export function planComplinityAssignments(assignments: readonly Assignment[], latest: { from: string; to: string }, lk: Lookups) {
+export function planComplinityAssignments(
+    assignments: readonly Assignment[],
+    latest: { from: string; to: string },
+    lk: Lookups,
+    // History files only add the old assignments that are missing here, and always as stopped
+    opts: { pastOnly?: boolean } = {},
+) {
     const errors: RowError[] = [];
     const warnings: string[] = [];
     const fail = (a: Assignment, field: string, message: string) => errors.push({ file: a.file, row: a.row, field, message });
@@ -317,8 +323,8 @@ export function planComplinityAssignments(assignments: readonly Assignment[], la
         if (!manager) missingUsers.set(a.manager.email, (missingUsers.get(a.manager.email) ?? 0) + 1);
         if (!owner || !manager) continue;
 
-        let isActive = stillInUse(a, latest);
-        if (!isActive) stopped++;
+        let isActive = opts.pastOnly ? false : stillInUse(a, latest);
+        if (!isActive && !opts.pastOnly) stopped++;
         if (isActive && !c.isActive) {
             libraryInactive++;
             isActive = false;
