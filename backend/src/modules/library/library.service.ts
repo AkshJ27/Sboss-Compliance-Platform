@@ -3,6 +3,8 @@ import { prisma } from '../../lib/prisma';
 import { HttpError } from '../../lib/errors';
 import { recordAudit, changedFields } from '../../lib/audit';
 import type { AuthUser } from '../../middleware/auth';
+import { activeWhere } from '../../lib/active-filter';
+import type { StatusFilter } from '../../lib/active-filter';
 import { COMPARE_KEYS, scheduleProblem } from './library.schema';
 
 const complianceInclude = {
@@ -45,6 +47,7 @@ type ActQuery = {
     state?: string;
     search?: string;
     includeInactive: boolean;
+    status?: StatusFilter;
     page: number;
     limit: number;
 };
@@ -52,7 +55,7 @@ type ActQuery = {
 export async function listActs(actor: AuthUser, q: ActQuery) {
     const where: Prisma.ActWhereInput = {
         AND: [visibleActs(actor.orgId)],
-        ...(q.includeInactive ? {} : { isActive: true }),
+        ...activeWhere(q),
         ...(q.lawCategoryId ? { lawCategoryId: q.lawCategoryId } : {}),
         ...(q.jurisdiction ? { jurisdiction: q.jurisdiction } : {}),
         ...(q.state ? { state: q.state } : {}),
@@ -91,6 +94,7 @@ type ComplianceQuery = {
     risk?: Prisma.ComplianceWhereInput['risk'];
     search?: string;
     includeInactive: boolean;
+    status?: StatusFilter;
     type?: 'STATUTORY' | 'INTERNAL';
     mapping?: 'MAPPED' | 'UNMAPPED';
     page: number;
@@ -112,7 +116,7 @@ export async function listCompliances(actor: AuthUser, q: ComplianceQuery) {
             ...(q.mapping === 'MAPPED' ? [{ schedules: mapped }] : []),
             ...(q.mapping === 'UNMAPPED' ? [{ schedules: { none: { orgId, isActive: true } } }] : []),
         ],
-        ...(q.includeInactive ? {} : { isActive: true }),
+        ...activeWhere(q),
         ...(q.actId ? { actId: q.actId } : {}),
         ...(q.natureId ? { natureId: q.natureId } : {}),
         ...(q.frequency ? { frequency: q.frequency } : {}),

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Form, Input, Modal, Popconfirm, Space, Switch, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Popconfirm, Space, Table, Tag, message } from 'antd';
 import type { TableProps } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -7,6 +7,8 @@ import { api } from '../../../core/api/client';
 import { errorText } from '../../../shared/errors';
 import { useSimple } from '../api';
 import type { Simple, SimpleKind } from '../api';
+import { StatusFilter, byStatus } from '../../../shared/StatusFilter';
+import type { StatusFilterValue } from '../../../shared/StatusFilter';
 
 type Props = { kind: SimpleKind; singular: string; plural: string };
 type NameValues = { name: string };
@@ -47,10 +49,10 @@ function NameModal({ title, initial, busy, onSave, onCancel }: ModalProps) {
 export function SimpleMasterTab({ kind, singular, plural }: Props) {
     const qc = useQueryClient();
     const [notify, holder] = message.useMessage();
-    const [showInactive, setShowInactive] = useState(false);
+    const [status, setStatus] = useState<StatusFilterValue>('active');
     const [editing, setEditing] = useState<Simple | 'new' | null>(null);
     const [busy, setBusy] = useState(false);
-    const q = useSimple(kind, showInactive);
+    const q = useSimple(kind, status !== 'active');
 
     const refresh = () => qc.invalidateQueries({ queryKey: ['masters'] });
 
@@ -124,10 +126,7 @@ export function SimpleMasterTab({ kind, singular, plural }: Props) {
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditing('new')}>
                     New {singular}
                 </Button>
-                <span>
-                    <Switch size="small" checked={showInactive} onChange={setShowInactive} />{' '}
-                    <Typography.Text type="secondary">Show inactive</Typography.Text>
-                </span>
+                <StatusFilter value={status} onChange={setStatus} />
             </Space>
 
             {q.isError && (
@@ -148,7 +147,7 @@ export function SimpleMasterTab({ kind, singular, plural }: Props) {
                 rowKey="id"
                 size="middle"
                 columns={columns}
-                dataSource={q.data ?? []}
+                dataSource={byStatus(q.data ?? [], status)}
                 loading={q.isFetching}
                 pagination={{ pageSize: 25, hideOnSinglePage: true }}
             />

@@ -24,8 +24,10 @@ export function ChangeDueDateModal({ record, onClose, onDone }: Props) {
     const [files, setFiles] = useState<File[]>([]);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const periodStart = dayjs(record.periodStart.slice(0, 10));
     const current = record.dueDate.slice(0, 10);
+    // Items due before their period starts can keep a due date that early
+    const periodStart = dayjs(record.periodStart.slice(0, 10));
+    const earliest = dayjs(current).isBefore(periodStart, 'day') ? dayjs(current) : periodStart;
 
     const save = async () => {
         let v: Values;
@@ -73,7 +75,7 @@ export function ChangeDueDateModal({ record, onClose, onDone }: Props) {
                     <DatePicker
                         format="DD-MMM-YYYY"
                         style={{ width: 220 }}
-                        disabledDate={(d) => d.isBefore(periodStart, 'day') || d.format('YYYY-MM-DD') === current}
+                        disabledDate={(d) => d.isBefore(earliest, 'day') || d.format('YYYY-MM-DD') === current}
                     />
                 </Form.Item>
                 <Form.Item

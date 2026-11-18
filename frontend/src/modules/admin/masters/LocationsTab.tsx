@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Form, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, message } from 'antd';
 import type { TableProps } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,8 @@ import { errorText } from '../../../shared/errors';
 import { LoadWarning } from '../LoadWarning';
 import { useEntities, useSimple, useStates } from '../api';
 import type { Entity, LocationPage, LocationRow, Simple } from '../api';
+import { StatusFilter } from '../../../shared/StatusFilter';
+import type { StatusFilterValue } from '../../../shared/StatusFilter';
 
 type FormValues = {
     entityId?: string;
@@ -85,7 +87,11 @@ function LocationModal({ initial, entities, types, states, busy, onSave, onCance
                     label="State"
                     name="state"
                     rules={[{ required: true, message: 'Choose a state' }]}
-                    extra={initial ? 'Changing the state does not change compliances already activated here.' : 'State laws apply only at locations in that state.'}
+                    extra={
+                        initial
+                            ? "Changing the state stops the old state's laws here. Central laws carry on."
+                            : 'State laws apply only at locations in that state.'
+                    }
                 >
                     <Select
                         showSearch
@@ -116,7 +122,7 @@ export function LocationsTab() {
     const [entityId, setEntityId] = useState<string | undefined>();
     const [state, setState] = useState<string | undefined>();
     const [search, setSearch] = useState('');
-    const [showInactive, setShowInactive] = useState(false);
+    const [status, setStatus] = useState<StatusFilterValue>('active');
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(25);
 
@@ -128,7 +134,7 @@ export function LocationsTab() {
     if (entityId) params.set('entityId', entityId);
     if (state) params.set('state', state);
     if (search) params.set('search', search);
-    if (showInactive) params.set('includeInactive', 'true');
+    params.set('status', status);
     const qs = params.toString();
 
     const q = useQuery({
@@ -154,8 +160,9 @@ export function LocationsTab() {
                         ...(v.address ? { address: v.address } : {}),
                     },
                 });
+                notify.success('Saved');
             } else if (editing) {
-                const out = await api<{ stoppedSchedules?: number }>(`/masters/locations/${editing.id}`, {
+                const out = await api<{ stoppedSchedules?: number; removedItems?: number }>(`/masters/locations/${editing.id}`, {
                     method: 'PATCH',
                     body: {
                         name: v.name,
@@ -167,12 +174,13 @@ export function LocationsTab() {
                 });
                 if (out.stoppedSchedules) {
                     notify.warning(
-                        `Saved. ${out.stoppedSchedules} assignment(s) under ${editing.state} laws were stopped, since the location is now in ${v.state}. Add the ${v.state} laws from Schedules > Activate.`,
+                        `Saved. ${out.stoppedSchedules} assignment(s) under ${editing.state} laws were stopped, since the location is now in ${v.state}${out.removedItems ? `, and ${out.removedItems} of their upcoming item(s) nobody had started were removed` : ''}. Add the ${v.state} laws from Schedules > Activate.`,
                         10,
                     );
+                } else {
+                    notify.success('Saved');
                 }
             }
-            notify.success('Saved');
             setEditing(null);
             await refresh();
         } catch (e) {
@@ -279,17 +287,13 @@ export function LocationsTab() {
                         setPage(1);
                     }}
                 />
-                <span>
-                    <Switch
-                        size="small"
-                        checked={showInactive}
-                        onChange={(v) => {
-                            setShowInactive(v);
-                            setPage(1);
-                        }}
-                    />{' '}
-                    <Typography.Text type="secondary">Show inactive</Typography.Text>
-                </span>
+                <StatusFilter
+                    value={status}
+                    onChange={(v) => {
+                        setStatus(v);
+                        setPage(1);
+                    }}
+                />
             </Space>
 
             {q.isError && (

@@ -13,6 +13,7 @@ import type { AuthUser } from '../../middleware/auth';
 import { visibleTo } from '../compliance/instances.service';
 import type { ListQuery, MissingQuery, UpdateInput, UploadFields } from './documents.schema';
 import { openableRecords } from './records.access';
+import { verticalLimit } from '../../lib/vertical-limit';
 
 type Tx = Prisma.TransactionClient;
 
@@ -48,8 +49,13 @@ export function visibleDocs(actor: AuthUser): Prisma.DocumentWhereInput {
     if (actor.role === 'ORG_ADMIN') return base;
     // Files of a repository document follow that document's rules (see records.access.ts)
     const repositoryFiles: Prisma.DocumentWhereInput = { recordId: { not: null }, record: openableRecords(actor) };
+    // A user limited to some verticals (a vendor) sees Public proof files of those verticals' items only
+    const limit = verticalLimit(actor);
+    const publicFiles: Prisma.DocumentWhereInput = limit
+        ? { accessLevel: 'PUBLIC', OR: [{ instance: { verticalId: { in: limit } } }, { uploadedById: actor.id }] }
+        : { accessLevel: 'PUBLIC' };
     if (actor.role === 'VIEWER') {
-        return { ...base, OR: [{ recordId: null, accessLevel: 'PUBLIC' }, repositoryFiles] };
+        return { ...base, OR: [{ recordId: null, ...publicFiles }, repositoryFiles] };
     }
     return {
         ...base,
@@ -57,7 +63,7 @@ export function visibleDocs(actor: AuthUser): Prisma.DocumentWhereInput {
             {
                 recordId: null,
                 OR: [
-                    { accessLevel: 'PUBLIC' },
+                    publicFiles,
                     { accessLevel: { in: ['PRIVATE', 'PROTECTED'] }, uploadedById: actor.id },
                     {
                         accessLevel: 'PROTECTED',

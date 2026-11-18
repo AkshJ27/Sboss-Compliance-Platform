@@ -63,8 +63,11 @@ export function SubmitForm({ record, notify, onNavigate }: Props) {
     const [form] = Form.useForm<FormValues>();
     const [busy, setBusy] = useState<null | 'draft' | 'submit' | 'next' | 'skip'>(null);
 
+    // From the period start, or for the few items due before their period starts, up to a year before the due date
     const periodStart = dayjs(record.periodStart.slice(0, 10));
-    const disabledDate = (d: Dayjs) => d.isAfter(dayjs(), 'day') || d.isBefore(periodStart, 'day');
+    const dueDate = dayjs(record.dueDate.slice(0, 10));
+    const earliest = dueDate.isBefore(periodStart, 'day') ? dueDate.subtract(365, 'day') : periodStart;
+    const disabledDate = (d: Dayjs) => d.isAfter(dayjs(), 'day') || d.isBefore(earliest, 'day');
 
     const initial: FormValues = {
         submissionType: record.submissionType ?? 'APPLICABLE',

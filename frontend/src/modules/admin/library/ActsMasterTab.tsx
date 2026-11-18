@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Alert, Button, Form, Input, Modal, Popconfirm, Radio, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Popconfirm, Radio, Select, Space, Table, Tag, message } from 'antd';
 import type { TableProps } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../core/api/client';
 import { errorText } from '../../../shared/errors';
 import { useStates } from '../api';
+import { StatusFilter } from '../../../shared/StatusFilter';
+import type { StatusFilterValue } from '../../../shared/StatusFilter';
 
 type Named = { id: string; name: string };
 type Lookups = { lawCategories: Named[]; statutoryAuthorities: Named[] };
@@ -35,7 +37,7 @@ export function ActsMasterTab({ canEdit }: { canEdit: boolean }) {
     const [form] = Form.useForm<ActForm>();
     const states = useStates();
     const [search, setSearch] = useState('');
-    const [showInactive, setShowInactive] = useState(false);
+    const [status, setStatus] = useState<StatusFilterValue>('active');
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(25);
     const [editing, setEditing] = useState<ActRow | 'new' | null>(null);
@@ -50,7 +52,7 @@ export function ActsMasterTab({ canEdit }: { canEdit: boolean }) {
 
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set('search', search);
-    if (showInactive) params.set('includeInactive', 'true');
+    params.set('status', status);
     const qs = params.toString();
     const q = useQuery({
         queryKey: ['library', 'acts', 'masters', qs],
@@ -177,17 +179,13 @@ export function ActsMasterTab({ canEdit }: { canEdit: boolean }) {
                         setPage(1);
                     }}
                 />
-                <span>
-                    <Switch
-                        size="small"
-                        checked={showInactive}
-                        onChange={(v) => {
-                            setShowInactive(v);
-                            setPage(1);
-                        }}
-                    />{' '}
-                    <Typography.Text type="secondary">Show inactive</Typography.Text>
-                </span>
+                <StatusFilter
+                    value={status}
+                    onChange={(v) => {
+                        setStatus(v);
+                        setPage(1);
+                    }}
+                />
             </Space>
 
             {q.isError && (

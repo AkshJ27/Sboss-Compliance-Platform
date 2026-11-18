@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { statusQuery } from '../../lib/active-filter';
 import { INDIAN_STATES } from '../../lib/india';
 
 export const FREQUENCIES = [
@@ -41,6 +42,7 @@ export const actListQuerySchema = z.object({
     state: z.enum(INDIAN_STATES).optional(),
     search: z.string().trim().max(100).optional(),
     includeInactive: boolQuery,
+    status: statusQuery,
     ...paging,
 });
 
@@ -54,6 +56,7 @@ export const complianceListQuerySchema = z.object({
     risk: z.enum(RISKS).optional(),
     search: z.string().trim().max(100).optional(),
     includeInactive: boolQuery,
+    status: statusQuery,
     // STATUTORY: the shared library. INTERNAL: the company's own compliances.
     type: z.enum(['STATUTORY', 'INTERNAL']).optional(),
     // MAPPED: scheduled at one or more of the company's locations. UNMAPPED: not scheduled anywhere.

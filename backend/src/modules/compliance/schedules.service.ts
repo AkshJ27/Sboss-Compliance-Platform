@@ -3,12 +3,37 @@ import { prisma } from '../../lib/prisma';
 import { HttpError } from '../../lib/errors';
 import { recordAudit, changedFields } from '../../lib/audit';
 import { chunks } from '../../lib/chunks';
-import { parseDateOnly } from '../../lib/dates';
+import { parseDateOnly, todayInIndia } from '../../lib/dates';
 import type { AuthUser } from '../../middleware/auth';
 import type { ActivateInput, ScheduleListQuery, ScheduleUpdateInput } from './compliance.schema';
 
 const MAX_ACTIVATE = 5000;
 const insensitive = Prisma.QueryMode.insensitive;
+
+/**
+ * When assignments stop, their items due from today on that nobody has started are removed, so nobody is asked to
+ * do them. Items someone has worked on (a draft, a file, a submission or any history) and past items stay as they are.
+ */
+export async function removeUnstartedItems(db: Prisma.TransactionClient, orgId: string, scheduleIds: string[]) {
+    let removed = 0;
+    const today = parseDateOnly(todayInIndia());
+    for (const part of chunks(scheduleIds, 5000)) {
+        const r = await db.complianceInstance.deleteMany({
+            where: {
+                orgId,
+                scheduleId: { in: part },
+                status: 'DUE',
+                isWip: false,
+                submittedAt: null,
+                dueDate: { gte: today },
+                documents: { none: {} },
+                events: { none: {} },
+            },
+        });
+        removed += r.count;
+    }
+    return removed;
+}
 
 // Owner, manager and approver must be active, non-viewer users of the same company
 export async function assertAssignees(
@@ -267,6 +292,7 @@ export async function updateSchedule(actor: AuthUser, id: string, input: Schedul
             where: { id },
             data: { ownerId, managerId, approverId, isActive: input.isActive },
         });
+        const removedItems = before.isActive && input.isActive === false ? await removeUnstartedItems(tx, actor.orgId, [id]) : 0;
 
         // Only items nobody has submitted yet are reassigned
         const assignmentChanged =
@@ -290,8 +316,9 @@ export async function updateSchedule(actor: AuthUser, id: string, input: Schedul
             await recordAudit(tx, actor, 'SCHEDULE_UPDATED', 'ComplianceSchedule', id, {
                 ...changes,
                 reassignedInstances: reassigned,
+                removedItems,
             } as Prisma.InputJsonValue);
         }
-        return { ...after, reassignedInstances: reassigned };
+        return { ...after, reassignedInstances: reassigned, removedItems };
     });
 }

@@ -34,6 +34,7 @@ export function ReassignModal({ record, open, onClose, notify }: Props) {
         }
     }, [open, record.ownerId, record.managerId, record.approverId]);
 
+    const waitingForApprover = record.status === 'MANAGER_APPROVED';
     const options = (users.data ?? [])
         .filter((u) => u.isActive && u.role !== 'VIEWER')
         .map((u) => ({ value: u.id, label: `${u.name} (${u.email})` }));
@@ -45,6 +46,10 @@ export function ReassignModal({ record, open, onClose, notify }: Props) {
         }
         if (approverId && (approverId === ownerId || approverId === managerId)) {
             notify.warning('The approver must be a different person from the owner and manager');
+            return;
+        }
+        if (waitingForApprover && !approverId) {
+            notify.warning('This item is waiting for its approver, so it needs one');
             return;
         }
         const body: Record<string, unknown> = {};
@@ -100,7 +105,7 @@ export function ReassignModal({ record, open, onClose, notify }: Props) {
                     <Select showSearch optionFilterProp="label" style={{ width: '100%' }} value={managerId} options={options} loading={users.isLoading} onChange={setManagerId} />,
                 )}
                 {field(
-                    'Approver (optional)',
+                    waitingForApprover ? 'Approver' : 'Approver (optional)',
                     <Select
                         showSearch
                         optionFilterProp="label"
@@ -108,7 +113,7 @@ export function ReassignModal({ record, open, onClose, notify }: Props) {
                         value={approverId}
                         options={options}
                         loading={users.isLoading}
-                        allowClear
+                        allowClear={!waitingForApprover}
                         onChange={(v: string | undefined) => setApproverId(v ?? null)}
                         placeholder="No approver"
                     />,

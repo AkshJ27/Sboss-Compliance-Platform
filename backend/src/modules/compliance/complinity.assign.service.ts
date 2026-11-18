@@ -8,6 +8,7 @@ import { prisma } from '../../lib/prisma';
 import type { AuthUser } from '../../middleware/auth';
 import { planComplinityAssignments, readDashboardData } from './complinity.assign';
 import type { ComplianceRef, RowError, Sheet } from './complinity.assign';
+import { removeUnstartedItems } from './schedules.service';
 
 const MAX_ERRORS_SHOWN = 200;
 export const TX = { timeout: 10 * 60 * 1000, maxWait: 10_000 };
@@ -170,6 +171,10 @@ export async function saveAssignmentPlan(
     for (const p of toUpdate) {
         await tx.complianceSchedule.update({ where: { id: p.existingId as string }, data: people(p) });
     }
+
+    // Assignments Complinity has stopped lose their future items that nobody has started
+    const stopped = toUpdate.filter((p) => p.changes.includes('stopped')).map((p) => p.existingId as string);
+    if (stopped.length) await removeUnstartedItems(tx, orgId, stopped);
 
     return created;
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { statusQuery } from '../../lib/active-filter';
 import { INDIAN_STATES } from '../../lib/india';
 
 // The shared lookup lists behind the law library
@@ -51,6 +52,7 @@ export const ruleListQuerySchema = z.object({
     actId: uuid.optional(),
     search: z.string().trim().max(100).optional(),
     includeInactive: boolQuery,
+    status: statusQuery,
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(25),
 });

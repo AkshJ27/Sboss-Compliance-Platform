@@ -88,10 +88,24 @@ async function change(
     });
 }
 
-function checkDoneDate(doneDate: string, periodStart: Date) {
+const YEAR_MS = 365 * 86_400_000;
+
+// The earliest done date that makes sense: the period start, or for the few items due before their period starts
+// (a renewal applied for ahead of the year, say), up to a year before the due date
+export function earliestDoneDate(periodStart: Date, dueDate: Date): Date {
+    return dueDate.getTime() < periodStart.getTime() ? new Date(dueDate.getTime() - YEAR_MS) : periodStart;
+}
+
+function checkDoneDate(doneDate: string, inst: { periodStart: Date; dueDate: Date }) {
     if (doneDate > todayInIndia()) throw new HttpError(400, 'Done date cannot be in the future');
-    if (parseDateOnly(doneDate).getTime() < periodStart.getTime()) {
-        throw new HttpError(400, 'Done date cannot be before the period starts');
+    const earliest = earliestDoneDate(inst.periodStart, inst.dueDate);
+    if (parseDateOnly(doneDate).getTime() < earliest.getTime()) {
+        throw new HttpError(
+            400,
+            earliest === inst.periodStart
+                ? 'Done date cannot be before the period starts'
+                : 'Done date cannot be more than a year before the due date',
+        );
     }
 }
 
@@ -108,7 +122,7 @@ export async function saveDraft(actor: AuthUser, id: string, input: DraftInput) 
     await prisma.$transaction(async (tx) => {
         const inst = await load(tx, actor, id);
         assertOwnerCanEdit(inst, actor, 'edit');
-        if (input.doneDate) checkDoneDate(input.doneDate, inst.periodStart);
+        if (input.doneDate) checkDoneDate(input.doneDate, inst);
 
         const data: Update = { isWip: true };
         if (input.submissionType !== undefined) data.submissionType = input.submissionType;
@@ -132,7 +146,7 @@ export async function submit(actor: AuthUser, id: string, input: SubmitInput) {
     await prisma.$transaction(async (tx) => {
         const inst = await load(tx, actor, id);
         assertOwnerCanEdit(inst, actor, 'submit');
-        checkDoneDate(input.doneDate, inst.periodStart);
+        checkDoneDate(input.doneDate, inst);
 
         const notApplicable = input.submissionType === 'NOT_APPLICABLE';
         if (notApplicable && !input.remarks) {
@@ -289,6 +303,11 @@ export async function reassign(actor: AuthUser, id: string, input: AssigneesInpu
             throw new HttpError(400, 'The approver must be a different person from the owner and manager');
         }
 
+        // An item the manager already approved is waiting for its approver. Without one, nobody could finish it.
+        if (inst.status === 'MANAGER_APPROVED' && !approverId) {
+            throw new HttpError(400, 'This item is waiting for its approver, so it needs one. Choose another approver instead of removing them.');
+        }
+
         await assertAssignees(tx, actor.orgId, [input.ownerId, input.managerId, input.approverId]);
 
         // Someone who already handled the item can't end up reviewing it
@@ -332,7 +351,9 @@ export async function changeDueDate(actor: AuthUser, id: string, input: DueDateI
         }
         const from = toDateOnly(inst.dueDate);
         if (input.dueDate === from) throw new HttpError(400, 'That is already the due date');
-        if (input.dueDate < toDateOnly(inst.periodStart)) {
+        // Items due before their period starts can keep a due date that early
+        const earliestDue = inst.dueDate.getTime() < inst.periodStart.getTime() ? inst.dueDate : inst.periodStart;
+        if (input.dueDate < toDateOnly(earliestDue)) {
             throw new HttpError(400, 'The due date cannot be before the start of the period');
         }
 

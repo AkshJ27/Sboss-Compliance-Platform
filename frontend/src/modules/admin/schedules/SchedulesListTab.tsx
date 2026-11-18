@@ -6,7 +6,7 @@ import { api } from '../../../core/api/client';
 import { titleCase } from '../../../core/format';
 import { errorText } from '../../../shared/errors';
 import { LoadWarning } from '../LoadWarning';
-import { RISK_COLOR, useEntities, useUsers, userOptions } from '../api';
+import { RISK_COLOR, useEntities, useSimple, useUsers, userOptions } from '../api';
 import type { Level } from '../api';
 
 type Person = { id: string; name: string };
@@ -25,6 +25,7 @@ type ScheduleRow = {
     };
     entity: { id: string; name: string; code: string };
     location: { id: string; name: string; state: string };
+    vertical: { id: string; name: string } | null;
     owner: Person;
     manager: Person;
     approver: Person | null;
@@ -89,6 +90,7 @@ export function SchedulesListTab() {
     const [notify, holder] = message.useMessage();
     const [status, setStatus] = useState<'active' | 'inactive' | 'all'>('active');
     const [entityId, setEntityId] = useState<string | undefined>();
+    const [verticalId, setVerticalId] = useState<string | undefined>();
     const [ownerId, setOwnerId] = useState<string | undefined>();
     const [managerId, setManagerId] = useState<string | undefined>();
     const [search, setSearch] = useState('');
@@ -98,11 +100,13 @@ export function SchedulesListTab() {
     const [busy, setBusy] = useState(false);
 
     const entities = useEntities(true);
+    const verticals = useSimple('verticals', true);
     const users = useUsers();
     const people = userOptions(users.data);
 
     const params = new URLSearchParams({ status, page: String(page), limit: String(limit) });
     if (entityId) params.set('entityId', entityId);
+    if (verticalId) params.set('verticalId', verticalId);
     if (ownerId) params.set('ownerId', ownerId);
     if (managerId) params.set('managerId', managerId);
     if (search) params.set('search', search);
@@ -147,9 +151,16 @@ export function SchedulesListTab() {
 
     const toggle = async (row: ScheduleRow) => {
         try {
-            await api(`/compliance/schedules/${row.id}`, { method: 'PATCH', body: { isActive: !row.isActive } });
-            notify.success(row.isActive ? 'Deactivated' : 'Activated');
-            await refresh();
+            const res = await api<{ removedItems?: number }>(`/compliance/schedules/${row.id}`, {
+                method: 'PATCH',
+                body: { isActive: !row.isActive },
+            });
+            notify.success(
+                row.isActive
+                    ? `Deactivated.${res.removedItems ? ` ${res.removedItems} upcoming item(s) nobody had started were removed.` : ''}`
+                    : 'Activated. Use Generate items to create its due items.',
+            );
+            await Promise.all([refresh(), qc.invalidateQueries({ queryKey: ['records'] }), qc.invalidateQueries({ queryKey: ['dashboard'] })]);
         } catch (e) {
             notify.error(errorText(e));
         }
@@ -176,6 +187,7 @@ export function SchedulesListTab() {
             render: (_, r) => (r.compliance.act.state ? `${r.compliance.act.name} (${r.compliance.act.state})` : r.compliance.act.name),
         },
         { title: 'Location', key: 'loc', width: 220, render: (_, r) => `${r.entity.code} / ${r.location.name}` },
+        { title: 'Vertical', key: 'v', width: 120, render: (_, r) => r.vertical?.name ?? '' },
         { title: 'Owner', key: 'o', width: 140, render: (_, r) => r.owner.name },
         { title: 'Manager', key: 'm', width: 140, render: (_, r) => r.manager.name },
         { title: 'Approver', key: 'a', width: 140, render: (_, r) => r.approver?.name ?? '' },
@@ -204,7 +216,11 @@ export function SchedulesListTab() {
                     </Button>
                     <Popconfirm
                         title={r.isActive ? 'Deactivate this schedule?' : 'Activate this schedule?'}
-                        description={r.isActive ? 'No new items are generated. Existing items are not changed.' : undefined}
+                        description={
+                            r.isActive
+                                ? 'No new items are generated. Upcoming items nobody has started are removed. Past items and items someone has worked on stay.'
+                                : undefined
+                        }
                         okText={r.isActive ? 'Deactivate' : 'Activate'}
                         okButtonProps={{ danger: r.isActive }}
                         onConfirm={() => void toggle(r)}
@@ -246,6 +262,18 @@ export function SchedulesListTab() {
                     options={(entities.data ?? []).map((e) => ({ value: e.id, label: e.name }))}
                     onChange={(v: string | undefined) => {
                         setEntityId(v);
+                        reset();
+                    }}
+                />
+                <Select
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="All verticals"
+                    style={{ width: 180 }}
+                    options={(verticals.data ?? []).map((v) => ({ value: v.id, label: v.name }))}
+                    onChange={(v: string | undefined) => {
+                        setVerticalId(v);
                         reset();
                     }}
                 />
@@ -305,7 +333,7 @@ export function SchedulesListTab() {
                 columns={columns}
                 dataSource={q.data?.items ?? []}
                 loading={q.isFetching}
-                scroll={{ x: 1700 }}
+                scroll={{ x: 1820 }}
                 pagination={{
                     current: page,
                     pageSize: limit,

@@ -3,6 +3,9 @@ import { prisma } from '../../lib/prisma';
 import { HttpError, rethrowUnique } from '../../lib/errors';
 import { recordAudit, changedFields } from '../../lib/audit';
 import type { AuthUser } from '../../middleware/auth';
+import { activeWhere } from '../../lib/active-filter';
+import { removeUnstartedItems } from '../compliance/schedules.service';
+import type { StatusFilter } from '../../lib/active-filter';
 
 const DUP_MESSAGE = 'A location with this name already exists for this entity';
 
@@ -17,6 +20,7 @@ type ListQuery = {
     state?: string;
     search?: string;
     includeInactive: boolean;
+    status?: StatusFilter;
     page: number;
     limit: number;
 };
@@ -26,7 +30,7 @@ export async function list(orgId: string, q: ListQuery, limit: string[] | null =
     const where: Prisma.LocationWhereInput = {
         orgId,
         ...(limit ? { schedules: { some: { verticalId: { in: limit } } } } : {}),
-        ...(q.includeInactive ? {} : { isActive: true }),
+        ...activeWhere(q),
         ...(q.entityId ? { entityId: q.entityId } : {}),
         ...(q.locationTypeId ? { locationTypeId: q.locationTypeId } : {}),
         ...(q.state ? { state: q.state } : {}),
@@ -144,18 +148,25 @@ export async function update(
 
             // A location that moves to another state no longer follows the old state's laws: those assignments stop.
             // The new state's laws are then added from Schedules > Activate.
+            // Their items due from today on that nobody has started are removed too.
             let stoppedSchedules = 0;
+            let removedItems = 0;
             if (input.state && input.state !== before.state) {
-                const r = await tx.complianceSchedule.updateMany({
+                const stopping = await tx.complianceSchedule.findMany({
                     where: {
                         orgId: actor.orgId,
                         locationId: id,
                         isActive: true,
                         compliance: { act: { jurisdiction: 'STATE', NOT: { state: input.state } } },
                     },
-                    data: { isActive: false },
+                    select: { id: true },
                 });
-                stoppedSchedules = r.count;
+                const ids = stopping.map((x) => x.id);
+                if (ids.length) {
+                    const r = await tx.complianceSchedule.updateMany({ where: { id: { in: ids } }, data: { isActive: false } });
+                    stoppedSchedules = r.count;
+                    removedItems = await removeUnstartedItems(tx, actor.orgId, ids);
+                }
             }
             const changes = changedFields(before, after, [
                 'name',
@@ -166,9 +177,9 @@ export async function update(
                 'isActive',
             ]);
             if (Object.keys(changes as object).length) {
-                await recordAudit(tx, actor, 'LOCATION_UPDATED', 'Location', id, { ...(changes as object), stoppedSchedules });
+                await recordAudit(tx, actor, 'LOCATION_UPDATED', 'Location', id, { ...(changes as object), stoppedSchedules, removedItems });
             }
-            return { ...after, stoppedSchedules };
+            return { ...after, stoppedSchedules, removedItems };
         });
     } catch (e) {
         rethrowUnique(e, DUP_MESSAGE);

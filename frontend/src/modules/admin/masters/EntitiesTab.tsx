@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Form, Input, Modal, Popconfirm, Space, Switch, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Popconfirm, Space, Table, Tag, message } from 'antd';
 import type { TableProps } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -7,6 +7,8 @@ import { api } from '../../../core/api/client';
 import { errorText } from '../../../shared/errors';
 import { useEntities } from '../api';
 import type { Entity } from '../api';
+import { StatusFilter, byStatus } from '../../../shared/StatusFilter';
+import type { StatusFilterValue } from '../../../shared/StatusFilter';
 
 type FormValues = { name: string; code: string };
 
@@ -64,10 +66,10 @@ function EntityModal({ initial, busy, onSave, onCancel }: ModalProps) {
 export function EntitiesTab() {
     const qc = useQueryClient();
     const [notify, holder] = message.useMessage();
-    const [showInactive, setShowInactive] = useState(false);
+    const [status, setStatus] = useState<StatusFilterValue>('active');
     const [editing, setEditing] = useState<Entity | 'new' | null>(null);
     const [busy, setBusy] = useState(false);
-    const q = useEntities(showInactive);
+    const q = useEntities(status !== 'active');
 
     const refresh = () => qc.invalidateQueries({ queryKey: ['masters'] });
 
@@ -144,10 +146,7 @@ export function EntitiesTab() {
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditing('new')}>
                     New entity
                 </Button>
-                <span>
-                    <Switch size="small" checked={showInactive} onChange={setShowInactive} />{' '}
-                    <Typography.Text type="secondary">Show inactive</Typography.Text>
-                </span>
+                <StatusFilter value={status} onChange={setStatus} />
             </Space>
 
             {q.isError && (
@@ -168,7 +167,7 @@ export function EntitiesTab() {
                 rowKey="id"
                 size="middle"
                 columns={columns}
-                dataSource={q.data ?? []}
+                dataSource={byStatus(q.data ?? [], status)}
                 loading={q.isFetching}
                 pagination={{ pageSize: 25, hideOnSinglePage: true }}
             />

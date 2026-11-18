@@ -1,12 +1,16 @@
 import { useState } from 'react';
-import { Alert, Button, Descriptions, Drawer, Input, Segmented, Select, Skeleton, Space, Switch, Table, Tag, Timeline, Typography } from 'antd';
+import { Alert, Button, Descriptions, Drawer, Input, Popconfirm, Segmented, Select, Skeleton, Space, Table, Tag, Timeline, Typography, message } from 'antd';
 import type { TableProps } from 'antd';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../core/api/client';
+import { useMe } from '../../../core/auth/useMe';
+import { errorText } from '../../../shared/errors';
 import { formatDate, titleCase } from '../../../core/format';
 import { RISK_COLOR, useStates } from '../api';
 import { EditInternalModal } from './InternalForm';
 import type { Level } from '../api';
+import { StatusFilter } from '../../../shared/StatusFilter';
+import type { StatusFilterValue } from '../../../shared/StatusFilter';
 
 type Named = { id: string; name: string };
 type Lookups = { lawCategories: Named[] };
@@ -92,12 +96,31 @@ function describeChanges(changes: unknown): string {
 }
 
 function ComplianceDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+    const qc = useQueryClient();
+    const [notify, holder] = message.useMessage();
+    const me = useMe();
     const [editing, setEditing] = useState(false);
+    const [busy, setBusy] = useState(false);
     const q = useQuery({
         queryKey: ['library', 'compliance', id],
         queryFn: ({ signal }) => api<ComplianceDetail>(`/library/compliances/${id}`, { signal }),
     });
     const c = q.data;
+
+    // The shared library: only the platform administrator can switch a compliance on or off
+    const toggle = async () => {
+        if (!c) return;
+        setBusy(true);
+        try {
+            await api(`/library/compliances/${c.id}`, { method: 'PATCH', body: { isActive: !c.isActive } });
+            notify.success(c.isActive ? 'Deactivated' : 'Activated');
+            await qc.invalidateQueries({ queryKey: ['library'] });
+        } catch (e) {
+            notify.error(errorText(e));
+        } finally {
+            setBusy(false);
+        }
+    };
 
     return (
         <Drawer
@@ -110,9 +133,26 @@ function ComplianceDrawer({ id, onClose }: { id: string; onClose: () => void }) 
                     <Button type="primary" onClick={() => setEditing(true)}>
                         Modify
                     </Button>
+                ) : c && me.data?.isPlatformAdmin ? (
+                    <Popconfirm
+                        title={c.isActive ? 'Deactivate this compliance?' : 'Activate this compliance?'}
+                        description={
+                            c.isActive
+                                ? 'It can no longer be newly assigned, and no new items are generated for it. Items already created are not changed.'
+                                : undefined
+                        }
+                        okText={c.isActive ? 'Deactivate' : 'Activate'}
+                        okButtonProps={{ danger: c.isActive }}
+                        onConfirm={() => void toggle()}
+                    >
+                        <Button danger={c.isActive} loading={busy}>
+                            {c.isActive ? 'Deactivate' : 'Activate'}
+                        </Button>
+                    </Popconfirm>
                 ) : null
             }
         >
+            {holder}
             {editing && c && <EditInternalModal item={c} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />}
             {q.isError && !c && (
                 <Alert
@@ -158,7 +198,10 @@ function ComplianceDrawer({ id, onClose }: { id: string; onClose: () => void }) 
                                     { key: 'eff', label: 'Effective date', children: c.effectiveDate ? formatDate(c.effectiveDate) : '-' },
                                     { key: 'status', label: 'Status', children: c.isActive ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag> },
                                 ]
-                                : [{ key: 'version', label: 'Version', span: 2, children: c.version }]),
+                                : [
+                                    { key: 'version', label: 'Version', children: c.version },
+                                    { key: 'status', label: 'Status', children: c.isActive ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag> },
+                                ]),
                         ]}
                     />
                     <div>
@@ -198,7 +241,7 @@ function CompliancesView() {
     const [state, setState] = useState<string | undefined>();
     const [frequency, setFrequency] = useState<string | undefined>();
     const [risk, setRisk] = useState<string | undefined>();
-    const [showInactive, setShowInactive] = useState(false);
+    const [status, setStatus] = useState<StatusFilterValue>('active');
     const [type, setType] = useState<string | undefined>();
     const [mapping, setMapping] = useState<'ALL' | 'MAPPED' | 'UNMAPPED'>('ALL');
     const [page, setPage] = useState(1);
@@ -211,7 +254,7 @@ function CompliancesView() {
     if (state) params.set('state', state);
     if (frequency) params.set('frequency', frequency);
     if (risk) params.set('risk', risk);
-    if (showInactive) params.set('includeInactive', 'true');
+    params.set('status', status);
     if (type) params.set('type', type);
     if (mapping !== 'ALL') params.set('mapping', mapping);
     const qs = params.toString();
@@ -343,17 +386,13 @@ function CompliancesView() {
                         reset();
                     }}
                 />
-                <span>
-                    <Switch
-                        size="small"
-                        checked={showInactive}
-                        onChange={(v) => {
-                            setShowInactive(v);
-                            reset();
-                        }}
-                    />{' '}
-                    <Typography.Text type="secondary">Show inactive</Typography.Text>
-                </span>
+                <StatusFilter
+                    value={status}
+                    onChange={(v) => {
+                        setStatus(v);
+                        reset();
+                    }}
+                />
             </Space>
 
             {q.isError && (

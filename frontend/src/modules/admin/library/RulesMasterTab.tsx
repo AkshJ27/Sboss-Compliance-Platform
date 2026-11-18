@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Form, Input, Modal, Popconfirm, Space, Switch, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography, message } from 'antd';
 import type { TableProps } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +7,8 @@ import { api } from '../../../core/api/client';
 import { errorText } from '../../../shared/errors';
 import { RemoteSelect } from '../RemoteSelect';
 import type { Opt } from '../RemoteSelect';
+import { StatusFilter } from '../../../shared/StatusFilter';
+import type { StatusFilterValue } from '../../../shared/StatusFilter';
 
 type RuleRow = {
     id: string;
@@ -33,7 +35,7 @@ export function RulesMasterTab({ canEdit }: { canEdit: boolean }) {
     const [notify, holder] = message.useMessage();
     const [act, setAct] = useState<Opt | undefined>();
     const [search, setSearch] = useState('');
-    const [showInactive, setShowInactive] = useState(false);
+    const [status, setStatus] = useState<StatusFilterValue>('active');
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(25);
     const [editing, setEditing] = useState<RuleRow | 'new' | null>(null);
@@ -44,7 +46,7 @@ export function RulesMasterTab({ canEdit }: { canEdit: boolean }) {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (act) params.set('actId', act.value);
     if (search) params.set('search', search);
-    if (showInactive) params.set('includeInactive', 'true');
+    params.set('status', status);
     const qs = params.toString();
     const q = useQuery({
         queryKey: ['library', 'rules', qs],
@@ -158,17 +160,13 @@ export function RulesMasterTab({ canEdit }: { canEdit: boolean }) {
                         setPage(1);
                     }}
                 />
-                <span>
-                    <Switch
-                        size="small"
-                        checked={showInactive}
-                        onChange={(v) => {
-                            setShowInactive(v);
-                            setPage(1);
-                        }}
-                    />{' '}
-                    <Typography.Text type="secondary">Show inactive</Typography.Text>
-                </span>
+                <StatusFilter
+                    value={status}
+                    onChange={(v) => {
+                        setStatus(v);
+                        setPage(1);
+                    }}
+                />
             </Space>
 
             {q.isError && (

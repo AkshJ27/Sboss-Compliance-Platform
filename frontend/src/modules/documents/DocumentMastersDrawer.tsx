@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    Alert, Button, Drawer, Form, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Typography, message,
+    Alert, Button, Drawer, Form, Input, Modal, Popconfirm, Select, Space, Table, Tabs, Tag, Typography, message,
 } from 'antd';
 import type { TableProps } from 'antd';
 import { PlusOutlined, SwapOutlined } from '@ant-design/icons';
@@ -11,6 +11,8 @@ import { errorText } from '../../shared/errors';
 import { useUsers, userOptions } from '../admin/api';
 import { useDocCategories } from './api';
 import type { DocCategory, RecordPage } from './api';
+import { StatusFilter, byStatus } from '../../shared/StatusFilter';
+import type { StatusFilterValue } from '../../shared/StatusFilter';
 
 export type MastersTab = 'category' | 'sub' | 'subsub' | 'owner-swap';
 
@@ -22,7 +24,7 @@ function CategoryLevel({ level, canEdit }: { level: 1 | 2 | 3; canEdit: boolean 
     const [notify, holder] = message.useMessage();
     const [catId, setCatId] = useState<string | undefined>();
     const [subId, setSubId] = useState<string | undefined>();
-    const [showInactive, setShowInactive] = useState(false);
+    const [status, setStatus] = useState<StatusFilterValue>('active');
     const [editing, setEditing] = useState<DocCategory | 'new' | null>(null);
     const [busy, setBusy] = useState(false);
     const [form] = Form.useForm<{ name: string }>();
@@ -30,7 +32,7 @@ function CategoryLevel({ level, canEdit }: { level: 1 | 2 | 3; canEdit: boolean 
     const cats = useDocCategories(1, null, true);
     const subs = useDocCategories(2, catId, true);
     const parentId = level === 1 ? null : level === 2 ? catId : subId;
-    const rows = useDocCategories(level, parentId, showInactive);
+    const rows = useDocCategories(level, parentId, status !== 'active');
     const ready = level === 1 || !!parentId;
     const refresh = () => qc.invalidateQueries({ queryKey: ['documents'] });
 
@@ -144,10 +146,7 @@ function CategoryLevel({ level, canEdit }: { level: 1 | 2 | 3; canEdit: boolean 
                         New {LABEL[level]}
                     </Button>
                 )}
-                <span>
-                    <Switch size="small" checked={showInactive} onChange={setShowInactive} />{' '}
-                    <Typography.Text type="secondary">Show inactive</Typography.Text>
-                </span>
+                <StatusFilter value={status} onChange={setStatus} />
             </Space>
 
             {rows.isError && <Alert type="error" showIcon message="The list could not be loaded" description={rows.error.message} />}
@@ -156,7 +155,7 @@ function CategoryLevel({ level, canEdit }: { level: 1 | 2 | 3; canEdit: boolean 
                     rowKey="id"
                     size="small"
                     columns={columns}
-                    dataSource={rows.data ?? []}
+                    dataSource={byStatus(rows.data ?? [], status)}
                     loading={rows.isFetching}
                     pagination={{ pageSize: 20, hideOnSinglePage: true }}
                 />

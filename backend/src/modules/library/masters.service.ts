@@ -3,6 +3,7 @@ import { recordAudit } from '../../lib/audit';
 import { HttpError, rethrowUnique } from '../../lib/errors';
 import { prisma } from '../../lib/prisma';
 import type { AuthUser } from '../../middleware/auth';
+import { activeWhere } from '../../lib/active-filter';
 import type {
     ActCreateInput, ActUpdateInput, LookupKind, RuleCreateInput, RuleListQuery, RuleUpdateInput,
 } from './masters.schema';
@@ -185,7 +186,7 @@ export async function updateAct(actor: AuthUser, id: string, input: ActUpdateInp
 export async function listAllRules(actor: AuthUser, q: RuleListQuery) {
     const where: Prisma.RuleWhereInput = {
         act: visibleActs(actor.orgId),
-        ...(q.includeInactive ? {} : { isActive: true }),
+        ...activeWhere(q),
         ...(q.actId ? { actId: q.actId } : {}),
         ...(q.search ? { name: { contains: q.search, mode: Prisma.QueryMode.insensitive } } : {}),
     };

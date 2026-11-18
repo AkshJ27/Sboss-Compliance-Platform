@@ -5,6 +5,7 @@ import { HttpError } from '../../lib/errors';
 import { changedFields, recordAudit } from '../../lib/audit';
 import { parseDateOnly, toDateOnly, todayInIndia } from '../../lib/dates';
 import type { AuthUser } from '../../middleware/auth';
+import { verticalLimit } from '../../lib/vertical-limit';
 import { addDays } from '../notifications/digest';
 import { canManage, canWork, capabilitiesOf, isOpen, isOverdue, OPEN_STATUSES, statusProblem } from './tasks.engine';
 import { planAssigned, planComment, planStatus, sendTaskNotices } from './tasks.notify';
@@ -170,9 +171,25 @@ export async function get(actor: AuthUser, id: string) {
 
 // ---- Helpers for changes -----------------------------------------------------------
 
-async function assertAssignee(db: Db, orgId: string, id: string) {
+// A user limited to some verticals (a vendor) can only give tasks to themselves and the people on their verticals' items
+async function assertAssignee(db: Db, actor: AuthUser, id: string) {
+    const limit = verticalLimit(actor);
     const u = await db.user.findFirst({
-        where: { id, orgId, isActive: true, role: { in: ['ORG_ADMIN', 'MEMBER'] } },
+        where: {
+            id,
+            orgId: actor.orgId,
+            isActive: true,
+            role: { in: ['ORG_ADMIN', 'MEMBER'] },
+            ...(limit && id !== actor.id
+                ? {
+                    OR: [
+                        { ownedSchedules: { some: { verticalId: { in: limit } } } },
+                        { managedSchedules: { some: { verticalId: { in: limit } } } },
+                        { approvedSchedules: { some: { verticalId: { in: limit } } } },
+                    ],
+                }
+                : {}),
+        },
         select: { id: true, name: true },
     });
     if (!u) throw new HttpError(400, 'The assignee must be an active user who is not a viewer');
@@ -248,7 +265,7 @@ export async function create(actor: AuthUser, input: CreateInput) {
     if (input.dueDate) assertNotPast(input.dueDate);
 
     const id = await prisma.$transaction(async (tx) => {
-        await assertAssignee(tx, actor.orgId, input.assigneeId);
+        await assertAssignee(tx, actor, input.assigneeId);
         if (input.entityId) await assertEntity(tx, actor.orgId, input.entityId);
 
         const task = await tx.task.create({
@@ -330,7 +347,7 @@ export async function reassign(actor: AuthUser, id: string, input: ReassignInput
         if (input.assigneeId === before.assigneeId) {
             throw new HttpError(400, 'This task is already assigned to that person');
         }
-        const to = await assertAssignee(tx, actor.orgId, input.assigneeId);
+        const to = await assertAssignee(tx, actor, input.assigneeId);
 
         const r = await tx.task.updateMany({
             where: { id, orgId: actor.orgId, status: before.status, assigneeId: before.assigneeId },
