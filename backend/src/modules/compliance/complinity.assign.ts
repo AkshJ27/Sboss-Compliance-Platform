@@ -251,8 +251,9 @@ export function planComplinityAssignments(
     assignments: readonly Assignment[],
     latest: { from: string; to: string },
     lk: Lookups,
-    // History files only add the old assignments that are missing here, and always as stopped
-    opts: { pastOnly?: boolean } = {},
+    // History files only add the assignments that are missing here: stopped, unless they still have an item due
+    // on or after liveFrom (an annual item that the assignment files missed, say), which are added as active
+    opts: { pastOnly?: boolean; liveFrom?: string } = {},
 ) {
     const errors: RowError[] = [];
     const warnings: string[] = [];
@@ -323,7 +324,7 @@ export function planComplinityAssignments(
         if (!manager) missingUsers.set(a.manager.email, (missingUsers.get(a.manager.email) ?? 0) + 1);
         if (!owner || !manager) continue;
 
-        let isActive = opts.pastOnly ? false : stillInUse(a, latest);
+        let isActive = opts.pastOnly ? !!opts.liveFrom && a.lastDue >= opts.liveFrom : stillInUse(a, latest);
         if (!isActive && !opts.pastOnly) stopped++;
         if (isActive && !c.isActive) {
             libraryInactive++;

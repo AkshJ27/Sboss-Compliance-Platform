@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { Alert, Button, Col, Form, Input, Modal, Popconfirm, Radio, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { TableProps } from 'antd';
-import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { PlusOutlined, SafetyOutlined, UploadOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../core/api/client';
 import type { Role } from '../../../core/api/client';
 import { useAuth } from '../../../core/auth/AuthContext';
 import { formatDateTime } from '../../../core/format';
 import { errorText } from '../../../shared/errors';
-import { useUsers } from '../api';
+import { useSimple, useUsers } from '../api';
 import type { UserRow } from '../api';
 import { UsersUploadModal } from './UsersUploadModal';
+import { VendorAccessModal } from './VendorAccessModal';
 
 const ROLE_LABEL: Record<Role, string> = { ORG_ADMIN: 'Admin', MEMBER: 'Member', VIEWER: 'Viewer' };
 const ROLE_COLOR: Record<Role, string> = { ORG_ADMIN: 'red', MEMBER: 'blue', VIEWER: 'default' };
@@ -112,7 +113,7 @@ function NewUserModal({
     );
 }
 
-type EditValues = { name: string; role: Role; managerId?: string | null; defaultApproverId?: string | null; employeeCode?: string; mobile?: string };
+type EditValues = { name: string; role: Role; managerId?: string | null; defaultApproverId?: string | null; employeeCode?: string; mobile?: string; verticalIds?: string[] };
 
 function EditUserModal({
     user,
@@ -130,6 +131,8 @@ function EditUserModal({
     onCancel: () => void;
 }) {
     const [form] = Form.useForm<EditValues>();
+    const verticals = useSimple('verticals', false);
+    const role = Form.useWatch('role', form);
     return (
         <Modal open title="Edit user" okText="Save" confirmLoading={busy} onOk={() => form.submit()} onCancel={onCancel} destroyOnClose>
             <Typography.Paragraph type="secondary">{user.email}</Typography.Paragraph>
@@ -143,6 +146,7 @@ function EditUserModal({
                     defaultApproverId: user.defaultApproverId ?? undefined,
                     employeeCode: user.employeeCode ?? undefined,
                     mobile: user.mobile ?? undefined,
+                    verticalIds: user.verticals.map((v) => v.id),
                 }}
                 onFinish={(v) => onSave({ ...v, name: v.name.trim() })}
             >
@@ -165,6 +169,24 @@ function EditUserModal({
                 </Form.Item>
                 <Form.Item label="Reporting manager" name="managerId" extra="Filled in as the manager on new documents they add.">
                     <Select allowClear showSearch optionFilterProp="label" placeholder="No manager" options={people.filter((p) => p.value !== user.id)} />
+                </Form.Item>
+                <Form.Item
+                    label="Limited to verticals"
+                    name="verticalIds"
+                    extra={
+                        role === 'ORG_ADMIN'
+                            ? 'Admins are never limited.'
+                            : 'For vendors: they see only documents, people and locations of these verticals. Leave empty for no limit.'
+                    }
+                >
+                    <Select
+                        mode="multiple"
+                        allowClear
+                        disabled={role === 'ORG_ADMIN'}
+                        optionFilterProp="label"
+                        placeholder="No limit"
+                        options={(verticals.data ?? []).map((v) => ({ value: v.id, label: v.name }))}
+                    />
                 </Form.Item>
                 <Form.Item label="Default approver" name="defaultApproverId" extra="Filled in as the approver when compliances are assigned to this person. They give the final approval after the manager.">
                     <Select allowClear showSearch optionFilterProp="label" placeholder="No approver" options={people.filter((p) => p.value !== user.id)} />
@@ -196,6 +218,7 @@ export default function UsersPage() {
     const [busy, setBusy] = useState(false);
     const [created, setCreated] = useState<Created | null>(null);
     const [uploading, setUploading] = useState(false);
+    const [vendorAccess, setVendorAccess] = useState(false);
     const people = (q.data ?? []).filter((u) => u.isActive).map((u) => ({ value: u.id, label: `${u.name} (${u.email})` }));
 
     const refresh = () => qc.invalidateQueries({ queryKey: ['users'] });
@@ -235,6 +258,8 @@ export default function UsersPage() {
         if ((v.defaultApproverId ?? null) !== editing.defaultApproverId) body.defaultApproverId = v.defaultApproverId ?? null;
         if ((v.employeeCode?.trim() || null) !== editing.employeeCode) body.employeeCode = v.employeeCode?.trim() || null;
         if ((v.mobile?.trim() || null) !== editing.mobile) body.mobile = v.mobile?.trim() || null;
+        const ids = [...(v.verticalIds ?? [])].sort();
+        if (ids.join() !== editing.verticals.map((x) => x.id).sort().join()) body.verticalIds = ids;
         if (Object.keys(body).length === 0) {
             notify.info('Nothing was changed');
             return;
@@ -286,6 +311,17 @@ export default function UsersPage() {
         { title: 'Email', dataIndex: 'email', key: 'email' },
         { title: 'Manager', key: 'manager', render: (_, r) => r.manager?.name ?? '' },
         { title: 'Approver', key: 'approver', render: (_, r) => r.defaultApprover?.name ?? '' },
+        {
+            title: 'Access',
+            key: 'access',
+            width: 150,
+            render: (_, r) =>
+                r.role === 'ORG_ADMIN' || r.verticals.length === 0 ? (
+                    <Typography.Text type="secondary">All</Typography.Text>
+                ) : (
+                    r.verticals.map((v) => <Tag key={v.id}>{v.name}</Tag>)
+                ),
+        },
         { title: 'User ID', key: 'code', width: 90, render: (_, r) => r.employeeCode ?? '' },
         { title: 'Role', key: 'role', render: (_, r) => <Tag color={ROLE_COLOR[r.role]}>{ROLE_LABEL[r.role]}</Tag> },
         {
@@ -358,6 +394,9 @@ export default function UsersPage() {
                 <Button icon={<UploadOutlined />} onClick={() => setUploading(true)}>
                     Upload users (Excel)
                 </Button>
+                <Button icon={<SafetyOutlined />} onClick={() => setVendorAccess(true)}>
+                    Limit vendors to their verticals
+                </Button>
             </Space>
 
             {q.isError && (
@@ -380,10 +419,11 @@ export default function UsersPage() {
                 columns={columns}
                 dataSource={q.data ?? []}
                 loading={q.isFetching}
-                scroll={{ x: 1450 }}
+                scroll={{ x: 1600 }}
                 pagination={{ pageSize: 25, hideOnSinglePage: true }}
             />
             {uploading && <UsersUploadModal onClose={() => setUploading(false)} />}
+            {vendorAccess && <VendorAccessModal onClose={() => setVendorAccess(false)} />}
             {creating && <NewUserModal busy={busy} onSave={(v) => void create(v)} onCancel={() => setCreating(false)} />}
             {editing && (
                 <EditUserModal

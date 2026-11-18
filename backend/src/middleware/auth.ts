@@ -2,8 +2,10 @@ import { Request, RequestHandler } from 'express';
 import { Role } from '@prisma/client';
 import { HttpError } from '../lib/errors';
 import { verifyAccessToken } from '../lib/tokens';
+import { loadVerticalScope } from '../lib/vertical-scope';
 
-export type AuthUser = { id: string; orgId: string; role: Role };
+// verticalIds: the verticals this user is limited to, such as a vendor's own. Empty or missing: no limit.
+export type AuthUser = { id: string; orgId: string; role: Role; verticalIds?: string[] };
 
 declare global {
     namespace Express {
@@ -13,16 +15,19 @@ declare global {
     }
 }
 
-export const requireAuth: RequestHandler = (req, _res, next) => {
+export const requireAuth: RequestHandler = async (req, _res, next) => {
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) throw new HttpError(401, 'Not logged in');
 
+    let p: ReturnType<typeof verifyAccessToken>;
     try {
-        const p = verifyAccessToken(header.slice(7));
-        req.user = { id: p.sub, orgId: p.orgId, role: p.role };
+        p = verifyAccessToken(header.slice(7));
     } catch {
         throw new HttpError(401, 'Session expired');
     }
+    // Admins are never limited to verticals
+    const verticalIds = p.role === 'ORG_ADMIN' ? [] : await loadVerticalScope(p.sub);
+    req.user = { id: p.sub, orgId: p.orgId, role: p.role, verticalIds };
     next();
 };
 

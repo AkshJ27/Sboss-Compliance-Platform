@@ -24,9 +24,10 @@ const META: Record<SimpleKind, { label: string; code: string }> = {
 
 const delegate = (c: Client, kind: SimpleKind) => c[kind] as unknown as SimpleDelegate;
 
-export const list = (orgId: string, kind: SimpleKind, includeInactive: boolean) =>
+// limit: the verticals a vendor user is limited to. They see only those in the list of verticals.
+export const list = (orgId: string, kind: SimpleKind, includeInactive: boolean, limit: string[] | null = null) =>
     delegate(prisma, kind).findMany({
-        where: { orgId, ...(includeInactive ? {} : { isActive: true }) },
+        where: { orgId, ...(includeInactive ? {} : { isActive: true }), ...(limit && kind === 'vertical' ? { id: { in: limit } } : {}) },
         orderBy: { name: 'asc' },
     });
 

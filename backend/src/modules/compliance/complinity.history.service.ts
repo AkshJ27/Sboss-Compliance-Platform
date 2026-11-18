@@ -1,7 +1,7 @@
 import type { InstanceStatus, Prisma } from '@prisma/client';
 import { recordAudit } from '../../lib/audit';
 import { chunks } from '../../lib/chunks';
-import { parseDateOnly } from '../../lib/dates';
+import { parseDateOnly, todayInIndia } from '../../lib/dates';
 import { prisma } from '../../lib/prisma';
 import type { AuthUser } from '../../middleware/auth';
 import { planComplinityAssignments, readDashboardData } from './complinity.assign';
@@ -105,10 +105,12 @@ export async function importComplinityHistory(actor: AuthUser, files: { name: st
 
     const codes = [...new Set(hist.rows.map((r) => r.code))];
     const lk = await lookups(orgId, codes);
-    // Old assignments missing here are added as stopped, so their history has somewhere to go
-    const aplan = planComplinityAssignments(read.assignments, read.latest, lk, { pastOnly: true });
+    // Assignments missing here are added so their history has somewhere to go: active if they still have an item due
+    // from today on, otherwise stopped
+    const aplan = planComplinityAssignments(read.assignments, read.latest, lk, { pastOnly: true, liveFrom: todayInIndia() });
     if (aplan.errors.length) return failure(aplan.errors, [], aplan.warnings);
     const missing = aplan.planned.filter((p) => !p.existingId);
+    const missingLive = missing.filter((p) => p.isActive).length;
 
     const periodFrom = hist.rows.reduce((m, r) => (r.periodStart < m ? r.periodStart : m), '9999-12-31');
     const periodTo = hist.rows.reduce((m, r) => (r.periodStart > m ? r.periodStart : m), '0000-01-01');
@@ -131,7 +133,12 @@ export async function importComplinityHistory(actor: AuthUser, files: { name: st
             open: count((p) => p.row.status === 'DUE'),
             warnings: [
                 ...plan.warnings,
-                ...(missing.length ? [`${missing.length} older assignment(s) from Complinity are not here yet. They are added as stopped, to hold their history.`] : []),
+                ...(missing.length - missingLive
+                    ? [`${missing.length - missingLive} older assignment(s) from Complinity are not here yet. They are added as stopped, to hold their history.`]
+                    : []),
+                ...(missingLive
+                    ? [`${missingLive} assignment(s) are not here yet but still have an item due, so they are added as active: ${[...new Set(missing.filter((p) => p.isActive).map((p) => `${p.compliance.code} at ${p.location.name}`))].slice(0, 10).join(', ')}${missingLive > 10 ? ', …' : ''}.`]
+                    : []),
                 'Proof files stay in Complinity: the export does not include them.',
             ],
         };

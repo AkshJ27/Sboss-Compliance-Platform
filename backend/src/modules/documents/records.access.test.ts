@@ -47,3 +47,23 @@ describe('document repository access', () => {
         expect(canDelete(admin, rec('PUBLIC'))).toBe(true);
     });
 });
+
+
+describe('vendor users limited to verticals', () => {
+    const vendor = { id: 'v1', orgId: 'o1', role: 'MEMBER' as const, verticalIds: ['quess'] };
+    it('see Public and Protected documents of their verticals, or ones they are named on', () => {
+        const w = visibleRecords(vendor) as { OR: unknown[] };
+        expect(w.OR[0]).toEqual({
+            accessLevel: { in: ['PUBLIC', 'PROTECTED'] },
+            OR: [{ verticalId: { in: ['quess'] } }, { ownerId: 'v1' }, { managerId: 'v1' }, { createdById: 'v1' }, { additionalUsers: { some: { userId: 'v1' } } }],
+        });
+    });
+    it('open Public files only for their verticals, or ones they are named on', () => {
+        const w = openableRecords(vendor) as { OR: unknown[] };
+        expect(w.OR[0]).toMatchObject({ accessLevel: { in: ['PUBLIC'] }, OR: expect.arrayContaining([{ verticalId: { in: ['quess'] } }]) });
+    });
+    it('everyone else is not limited, and admins never are', () => {
+        expect((visibleRecords({ id: 'u', orgId: 'o1', role: 'MEMBER' }) as { OR: unknown[] }).OR[0]).toEqual({ accessLevel: { in: ['PUBLIC', 'PROTECTED'] } });
+        expect(visibleRecords({ id: 'a', orgId: 'o1', role: 'ORG_ADMIN', verticalIds: ['quess'] })).toEqual({ orgId: 'o1', deletedAt: null });
+    });
+});

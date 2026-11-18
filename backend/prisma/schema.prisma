@@ -95,6 +95,7 @@ model User {
   reports           User[]               @relation("ReportingManager")
     defaultApprover   User?                @relation("DefaultApprover", fields: [defaultApproverId], references: [id], onDelete: SetNull)
   approvees         User[]               @relation("DefaultApprover")
+    verticalScope     UserVertical[]
 }
 
 model RefreshToken {
@@ -144,6 +145,7 @@ model Vertical {
   schedules ComplianceSchedule[]
   instances ComplianceInstance[]
     documentRecords DocumentRecord[]
+  userScope UserVertical[]
 
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -951,4 +953,17 @@ model ActSubscription {
   @@id([userId, actId])
   @@index([orgId])
   @@index([actId])
+}
+
+
+// The verticals a user is limited to, such as a vendor's own. No rows: no limit. Admins are never limited.
+model UserVertical {
+  userId     String
+  verticalId String
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vertical Vertical @relation(fields: [verticalId], references: [id], onDelete: Cascade)
+
+  @@id([userId, verticalId])
+  @@index([verticalId])
 }

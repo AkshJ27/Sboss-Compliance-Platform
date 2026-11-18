@@ -129,4 +129,15 @@ describe('planning', () => {
         expect(plan.masters.locations).toEqual([]);
         expect(plan.planned[0]).toMatchObject({ existingId: 's1', changes: ['owner'] });
     });
+
+    it('history files add missing assignments as stopped, unless they still have an item due', () => {
+        const rows = read([
+            { 'Compliance Instance ID': '1', 'Due Date': '30-Nov-2025' },
+            { 'Compliance Instance ID': '2', 'Due Date': '30-Nov-2026', Vertical: 'Adecco', 'Owner[Email Id]': 'N - [nidhi.babbar@adecco.com]' },
+        ]);
+        const plan = planComplinityAssignments(rows, latest, lookups(), { pastOnly: true, liveFrom: '2026-11-18' });
+        expect(plan.planned.map((p) => [p.assignmentId, p.isActive])).toEqual([['1', false], ['2', true]]);
+        const old = planComplinityAssignments(rows, latest, lookups(), { pastOnly: true });
+        expect(old.planned.every((p) => !p.isActive)).toBe(true);
+    });
 });

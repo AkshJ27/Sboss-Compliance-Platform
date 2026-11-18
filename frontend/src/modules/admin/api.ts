@@ -48,6 +48,7 @@ export type UserRow = {
     employeeCode: string | null;
     mobile: string | null;
     emailAlerts: boolean;
+    verticals: { id: string; name: string }[]; // limited to these; empty for no limit
 };
 
 export const useEntities = (includeInactive: boolean) =>

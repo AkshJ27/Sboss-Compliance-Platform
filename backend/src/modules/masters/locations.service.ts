@@ -21,9 +21,11 @@ type ListQuery = {
     limit: number;
 };
 
-export async function list(orgId: string, q: ListQuery) {
+// limit: the verticals a vendor user is limited to. They see only the locations with work for those verticals.
+export async function list(orgId: string, q: ListQuery, limit: string[] | null = null) {
     const where: Prisma.LocationWhereInput = {
         orgId,
+        ...(limit ? { schedules: { some: { verticalId: { in: limit } } } } : {}),
         ...(q.includeInactive ? {} : { isActive: true }),
         ...(q.entityId ? { entityId: q.entityId } : {}),
         ...(q.locationTypeId ? { locationTypeId: q.locationTypeId } : {}),

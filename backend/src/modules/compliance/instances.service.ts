@@ -4,6 +4,7 @@ import { HttpError } from '../../lib/errors';
 import { recordAudit } from '../../lib/audit';
 import { chunks } from '../../lib/chunks';
 import { parseDateOnly, toDateOnly, todayInIndia } from '../../lib/dates';
+import { verticalLimit } from '../../lib/vertical-limit';
 import type { AuthUser } from '../../middleware/auth';
 import type { GenerateInput } from './compliance.schema';
 import { occurrences } from './schedule.engine';
@@ -213,10 +214,12 @@ export const instanceInclude = {
     approver: person,
 } as const;
 
-// Admins and viewers see everything; members see only what they own, manage or approve
+// Admins see everything. Members see only what they own, manage or approve.
+// Viewers see everything, or only their verticals when they are limited to some.
 export function visibleTo(actor: AuthUser): Prisma.ComplianceInstanceWhereInput {
-    if (actor.role !== 'MEMBER') return {};
-    return { OR: [{ ownerId: actor.id }, { managerId: actor.id }, { approverId: actor.id }] };
+    if (actor.role === 'MEMBER') return { OR: [{ ownerId: actor.id }, { managerId: actor.id }, { approverId: actor.id }] };
+    const limit = verticalLimit(actor);
+    return limit ? { verticalId: { in: limit } } : {};
 }
 
 export function withOverdue<T extends { dueDate: Date; status: InstanceStatus; doneDate: Date | null }>(row: T) {

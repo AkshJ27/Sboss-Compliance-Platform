@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { INDIAN_STATES } from '../../lib/india';
 import { getUser, requireRole } from '../../middleware/auth';
+import { verticalLimit } from '../../lib/vertical-limit';
 import * as s from './masters.schema';
 import * as simple from './simple-masters.service';
 import * as entities from './entities.service';
@@ -42,7 +43,8 @@ const SIMPLE = [
 for (const { path, kind } of SIMPLE) {
     mastersRouter.get(`/${path}`, async (req, res) => {
         const { includeInactive } = s.listQuerySchema.parse(req.query);
-        res.json(await simple.list(getUser(req).orgId, kind, includeInactive));
+        const me = getUser(req);
+        res.json(await simple.list(me.orgId, kind, includeInactive, verticalLimit(me)));
     });
 
     mastersRouter.post(`/${path}`, admin, async (req, res) => {
@@ -60,7 +62,8 @@ for (const { path, kind } of SIMPLE) {
 // Locations
 mastersRouter.get('/locations', async (req, res) => {
     const query = s.locationListQuerySchema.parse(req.query);
-    res.json(await locations.list(getUser(req).orgId, query));
+    const me = getUser(req);
+    res.json(await locations.list(me.orgId, query, verticalLimit(me)));
 });
 
 mastersRouter.post('/locations', admin, async (req, res) => {

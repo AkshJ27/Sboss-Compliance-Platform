@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { verticalLimit } from '../../lib/vertical-limit';
 import type { AuthUser } from '../../middleware/auth';
 
 // Who can see a document in the repository and who can open its files.
@@ -11,6 +12,8 @@ import type { AuthUser } from '../../middleware/auth';
 //
 // "Named people" are the owner, the manager, the person who added it and the additional users.
 // Company admins see and open everything.
+// A user limited to some verticals (a vendor) sees Public and Protected documents of those verticals only,
+// plus any document they are named on.
 
 type Where = Prisma.DocumentRecordWhereInput;
 
@@ -30,10 +33,13 @@ const base = (actor: AuthUser): Where => ({ orgId: actor.orgId, deletedAt: null 
 
 export function visibleRecords(actor: AuthUser): Where {
     if (actor.role === 'ORG_ADMIN') return base(actor);
+    const limit = verticalLimit(actor);
     return {
         ...base(actor),
         OR: [
-            { accessLevel: { in: ['PUBLIC', 'PROTECTED'] } },
+            limit
+                ? { accessLevel: { in: ['PUBLIC', 'PROTECTED'] }, OR: [{ verticalId: { in: limit } }, ...named(actor.id)] }
+                : { accessLevel: { in: ['PUBLIC', 'PROTECTED'] } },
             { accessLevel: { in: ['PRIVATE'] }, OR: named(actor.id) },
             { accessLevel: { in: ['RESTRICTED'] }, OR: namedNoManager(actor.id) },
         ],
@@ -42,10 +48,13 @@ export function visibleRecords(actor: AuthUser): Where {
 
 export function openableRecords(actor: AuthUser): Where {
     if (actor.role === 'ORG_ADMIN') return base(actor);
+    const limit = verticalLimit(actor);
     return {
         ...base(actor),
         OR: [
-            { accessLevel: { in: ['PUBLIC'] } },
+            limit
+                ? { accessLevel: { in: ['PUBLIC'] }, OR: [{ verticalId: { in: limit } }, ...named(actor.id)] }
+                : { accessLevel: { in: ['PUBLIC'] } },
             { accessLevel: { in: ['PRIVATE', 'PROTECTED'] }, OR: named(actor.id) },
             { accessLevel: { in: ['RESTRICTED'] }, OR: namedNoManager(actor.id) },
         ],

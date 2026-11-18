@@ -20,6 +20,7 @@ export const updateUserSchema = z
         isActive: z.boolean().optional(),
         managerId: z.string().uuid().nullable().optional(), // reporting manager
         defaultApproverId: z.string().uuid().nullable().optional(), // approves their compliance items by default
+        verticalIds: z.array(z.string().uuid()).max(50).optional(), // limit to these verticals; empty for no limit
         employeeCode: z.string().trim().max(50).nullable().optional(),
         mobile: z
             .string()

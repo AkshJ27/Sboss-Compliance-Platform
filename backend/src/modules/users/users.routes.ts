@@ -13,7 +13,7 @@ export const usersRouter = Router();
 const admin = requireRole('ORG_ADMIN');
 
 usersRouter.get('/', async (req, res) => {
-    res.json(await users.listUsers(getUser(req).orgId));
+    res.json(await users.listUsers(getUser(req)));
 });
 
 // Uploading a users list (Complinity's export as it is). Checked first with ?dryRun=true.
@@ -29,6 +29,12 @@ usersRouter.post('/upload', admin, xlsxUpload, async (req, res) => {
     if (!req.file) throw new HttpError(400, 'Attach the Excel file in the "file" field');
     const out = await importUsers(getUser(req), req.file.buffer, dryRun, invite);
     res.status(out.ok ? (dryRun ? 200 : 201) : 422).json(out);
+});
+
+// Limits every outside user (a vendor) to the verticals of the items they work on. Checked first with ?dryRun=true.
+usersRouter.post('/vendor-access', admin, async (req, res) => {
+    const dryRun = req.query.dryRun !== 'false';
+    res.json(await users.setVendorAccess(getUser(req), dryRun));
 });
 
 usersRouter.post('/', admin, async (req, res) => {
