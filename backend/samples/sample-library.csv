@@ -1,6 +1,0 @@
-code,act,law_category,jurisdiction,state,statutory_authority,rule,title,description,form,nature,type,risk,impact,attachment,frequency,period_basis,due_day,due_month_offset,event,due_days_after_event,penalty,imprisonment
-SAMPLE-001,"Minimum Wages Act, 1948",Labour Laws,State,Maharashtra,Labour Department,,Sample: pay monthly wages,Placeholder row for testing,,Payment,Statutory,High,High,Mandatory,Monthly,Financial Year,10,1,,,,No
-SAMPLE-002,"Minimum Wages Act, 1948",Labour Laws,State,Karnataka,Labour Department,,Sample: pay monthly wages,Placeholder row for testing,,Payment,Statutory,High,High,Mandatory,Monthly,Financial Year,7,1,,,,No
-SAMPLE-003,"Companies Act, 2013",Corporate Laws,Central,,Ministry of Corporate Affairs,"Companies (Accounts) Rules, 2014",Sample: annual filing,Placeholder row for testing,Form X,Return,Statutory,Medium,Medium,Mandatory,Annual,Financial Year,30,6,,,,No
-SAMPLE-004,"Income-tax Act, 1961",Taxation,Central,,Income Tax Department,,Sample: quarterly return,Placeholder row for testing,,Return,Statutory,High,Medium,Optional,Quarterly,Financial Year,31,1,,,,No
-SAMPLE-005,"Companies Act, 2013",Corporate Laws,Central,,Ministry of Corporate Affairs,,Sample: intimation of a change,Placeholder row for testing,,Intimation,Statutory,Low,Low,Optional,Event Based,,,,Change of registered office,30,,No

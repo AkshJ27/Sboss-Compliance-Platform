@@ -155,7 +155,7 @@ export function LocationsTab() {
                     },
                 });
             } else if (editing) {
-                await api(`/masters/locations/${editing.id}`, {
+                const out = await api<{ stoppedSchedules?: number }>(`/masters/locations/${editing.id}`, {
                     method: 'PATCH',
                     body: {
                         name: v.name,
@@ -165,6 +165,12 @@ export function LocationsTab() {
                         address: v.address || null,
                     },
                 });
+                if (out.stoppedSchedules) {
+                    notify.warning(
+                        `Saved. ${out.stoppedSchedules} assignment(s) under ${editing.state} laws were stopped, since the location is now in ${v.state}. Add the ${v.state} laws from Schedules > Activate.`,
+                        10,
+                    );
+                }
             }
             notify.success('Saved');
             setEditing(null);

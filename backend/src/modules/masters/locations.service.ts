@@ -139,6 +139,22 @@ export async function update(
             }
 
             const after = await tx.location.update({ where: { id }, data: input, include });
+
+            // A location that moves to another state no longer follows the old state's laws: those assignments stop.
+            // The new state's laws are then added from Schedules > Activate.
+            let stoppedSchedules = 0;
+            if (input.state && input.state !== before.state) {
+                const r = await tx.complianceSchedule.updateMany({
+                    where: {
+                        orgId: actor.orgId,
+                        locationId: id,
+                        isActive: true,
+                        compliance: { act: { jurisdiction: 'STATE', NOT: { state: input.state } } },
+                    },
+                    data: { isActive: false },
+                });
+                stoppedSchedules = r.count;
+            }
             const changes = changedFields(before, after, [
                 'name',
                 'state',
@@ -148,9 +164,9 @@ export async function update(
                 'isActive',
             ]);
             if (Object.keys(changes as object).length) {
-                await recordAudit(tx, actor, 'LOCATION_UPDATED', 'Location', id, changes);
+                await recordAudit(tx, actor, 'LOCATION_UPDATED', 'Location', id, { ...(changes as object), stoppedSchedules });
             }
-            return after;
+            return { ...after, stoppedSchedules };
         });
     } catch (e) {
         rethrowUnique(e, DUP_MESSAGE);

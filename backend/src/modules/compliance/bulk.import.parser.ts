@@ -224,22 +224,8 @@ export function parseScheduleCsv(buffer: Buffer) {
     return { rows, errors, ignoredColumns: ignored, totalRows: counted };
 }
 
-// A file people can fill in. It reads back through the parser without a single problem.
+// An empty file to fill in: the headings only, so no made-up rows can be uploaded by mistake
 export function templateCsv(): string {
     const header = COLUMN_ORDER.map((k) => FIELD_LABEL[k]);
-    const rows = [
-        [
-            'ACME',
-            'Pune Plant',
-            'SAMPLE-001',
-            'owner@example.com',
-            'manager@example.com',
-            'approver@example.com',
-            'Human Resources',
-            'Manufacturing',
-            '2026-04-01',
-        ],
-        ['ACME', 'Pune Plant', 'SAMPLE-003', 'owner@example.com', 'manager@example.com', '', '', '', ''],
-    ];
-    return '\uFEFF' + [header, ...rows].map((r) => r.join(',')).join('\r\n') + '\r\n';
+    return '\uFEFF' + header.join(',') + '\r\n';
 }

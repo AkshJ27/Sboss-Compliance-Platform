@@ -178,17 +178,12 @@ export async function uploadFormat(): Promise<Buffer> {
         head.getCell(i + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c.required ? 'FFFFFF00' : 'FFD9E1F2' } };
     });
     for (let col = 1; col <= LEGAL_COLUMNS.length; col++) ws.getColumn(col).numFmt = '@';
-    ws.addRow([
-        'Corporate Laws', 'Companies Act, 2013', 'Companies (Incorporation) Rules, 2014', 'Central', 'Ministry of Corporate Affairs',
-        '03-Nov-2026', '04-Nov-2026', 'G.S.R. 968(E)', 'MCA issues Companies (Incorporation) Amendment Rules, 2026',
-        'What changed, in a few lines.', 'Yes', 'Yes', 'No', 'No', 'No', '', '06-Nov-2026',
-    ]).font = { italic: true, color: { argb: 'FF808080' } };
+
 
     const help = wb.addWorksheet('Instructions');
     help.columns = [{ header: 'Column', width: 24 }, { header: 'How to fill it', width: 110 }];
     help.getRow(1).font = { bold: true };
     for (const r of [
-        ['The example row', 'Delete the grey example row before uploading, or it will be added too.'],
         ['Law Category, Act, Rule', 'Use the names in the law library. An Act, Rule or law category that is not there yet is added. Write NA for no rule.'],
         ['Central/State', 'Central, or the full name of the state or union territory.'],
         ['Dates', 'Like 11-Nov-2026 (11-Nov-26 also works). Published Date defaults to the Notification Date.'],

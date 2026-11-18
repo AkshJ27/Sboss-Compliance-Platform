@@ -134,13 +134,13 @@ describe('parseScheduleCsv', () => {
         expect(() => parseScheduleCsv(csv(HEADER, 'ACME,Pune,C1,a@b.co,c@d.co,,,,,EXTRA'))).toThrow(/Could not read the CSV/);
     });
 
-    it('reads the downloadable template without a single problem', () => {
-        const r = parseScheduleCsv(Buffer.from(templateCsv(), 'utf8'));
+    it('the downloadable template has the headings only, and they read back', () => {
+        const lines = templateCsv().replace(/^\uFEFF/, '').trim().split('\r\n');
+        expect(lines).toHaveLength(1);
+        const r = parseScheduleCsv(Buffer.from(templateCsv() + 'ACME,Pune Plant,C1,owner@x.co,manager@x.co,,,,\r\n', 'utf8'));
         expect(r.errors).toEqual([]);
         expect(r.ignoredColumns).toEqual([]);
-        expect(r.rows).toHaveLength(2);
-        expect(r.rows[0]).toMatchObject({ department: 'Human Resources', vertical: 'Manufacturing', startDate: '2026-04-01' });
-        expect(r.rows[1]).toMatchObject({ approver: null, department: null, startDate: null });
+        expect(r.rows).toHaveLength(1);
     });
 
     it('refuses an empty file', () => {
