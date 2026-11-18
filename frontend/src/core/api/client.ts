@@ -135,8 +135,9 @@ export async function api<T = unknown>(path: string, o: Options = {}): Promise<T
 }
 
 // Downloads a file the server generates (exports), using the name the server gives it
-export async function apiDownload(path: string): Promise<void> {
-    const res = await request(path, {});
+// Pass options for a download that needs a POST, such as one that sends the ticked rows
+export async function apiDownload(path: string, o: Options = {}): Promise<void> {
+    const res = await request(path, o);
     if (!res.ok) return fail(res);
 
     const blob = await res.blob();

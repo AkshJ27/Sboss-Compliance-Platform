@@ -6,6 +6,7 @@ import { xlsxUpload } from '../../middleware/xlsx-upload';
 import { requirePlatformAdmin } from '../../middleware/platform-admin';
 import * as s from './library.schema';
 import * as lib from './library.service';
+import { exportCompliances } from './library.export';
 import { parseCsv } from './import.parser';
 import { planImport, commitImport } from './import.service';
 import { importComplinityLibrary } from './complinity.service';
@@ -38,6 +39,17 @@ libraryRouter.get('/acts/:id/rules', async (req, res) => {
 
 libraryRouter.get('/compliances', async (req, res) => {
     res.json(await lib.listCompliances(getUser(req), s.complianceListQuerySchema.parse(req.query)));
+});
+
+// The Browse list as Excel: the ticked compliances, or everything matching the filters. Filters in the query, ticks in the body.
+libraryRouter.post('/compliances/export', async (req, res) => {
+    const q = s.complianceListQuerySchema.parse(req.query);
+    const { ids } = s.complianceExportBodySchema.parse(req.body ?? {});
+    const out = await exportCompliances(getUser(req), q, ids);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${out.fileName}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(out.buffer);
 });
 
 libraryRouter.get('/compliances/:id', async (req, res) => {

@@ -101,8 +101,8 @@ type ComplianceQuery = {
     limit: number;
 };
 
-export async function listCompliances(actor: AuthUser, q: ComplianceQuery) {
-    const { orgId } = actor;
+// The Browse filters as a database filter, shared by the list and the Excel download
+export function complianceWhere(orgId: string, q: Omit<ComplianceQuery, 'page' | 'limit'>): Prisma.ComplianceWhereInput {
     const mapped: Prisma.ComplianceScheduleListRelationFilter = { some: { orgId, isActive: true } };
     const actFilter: Prisma.ActWhereInput = {
         ...(q.lawCategoryId ? { lawCategoryId: q.lawCategoryId } : {}),
@@ -132,6 +132,11 @@ export async function listCompliances(actor: AuthUser, q: ComplianceQuery) {
             }
             : {}),
     };
+    return where;
+}
+
+export async function listCompliances(actor: AuthUser, q: ComplianceQuery) {
+    const where = complianceWhere(actor.orgId, q);
     const [total, items] = await prisma.$transaction([
         prisma.compliance.count({ where }),
         prisma.compliance.findMany({

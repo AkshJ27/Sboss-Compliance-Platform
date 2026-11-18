@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Alert, Button, Descriptions, Drawer, Input, Popconfirm, Segmented, Select, Skeleton, Space, Table, Tag, Timeline, Typography, message } from 'antd';
 import type { TableProps } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../../core/api/client';
+import { api, apiDownload } from '../../../core/api/client';
 import { useMe } from '../../../core/auth/useMe';
 import { errorText } from '../../../shared/errors';
 import { formatDate, titleCase } from '../../../core/format';
@@ -247,6 +248,9 @@ function CompliancesView() {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(25);
     const [open, setOpen] = useState<string | null>(null);
+    const [selected, setSelected] = useState<string[]>([]);
+    const [downloading, setDownloading] = useState(false);
+    const [notify, holder] = message.useMessage();
 
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set('search', search);
@@ -266,6 +270,24 @@ function CompliancesView() {
     });
 
     const reset = () => setPage(1);
+
+    // The ticked rows, or everything matching the filters when nothing is ticked
+    const download = async () => {
+        setDownloading(true);
+        try {
+            const filters = new URLSearchParams(params);
+            filters.delete('page');
+            filters.delete('limit');
+            await apiDownload(`/library/compliances/export?${filters.toString()}`, {
+                method: 'POST',
+                body: selected.length ? { ids: selected } : {},
+            });
+        } catch (e) {
+            notify.error(errorText(e));
+        } finally {
+            setDownloading(false);
+        }
+    };
 
     const columns: TableProps<LibCompliance>['columns'] = [
         {
@@ -306,6 +328,7 @@ function CompliancesView() {
 
     return (
         <Space direction="vertical" style={{ width: '100%' }}>
+            {holder}
             <Segmented
                 value={mapping}
                 options={[
@@ -395,6 +418,20 @@ function CompliancesView() {
                 />
             </Space>
 
+            <Space wrap>
+                <Button icon={<DownloadOutlined />} loading={downloading} disabled={!q.data?.total && !selected.length} onClick={() => void download()}>
+                    {selected.length ? `Download Excel (${selected.length} selected)` : `Download Excel (all ${q.data?.total ?? 0})`}
+                </Button>
+                {selected.length > 0 && (
+                    <Button type="link" onClick={() => setSelected([])}>
+                        Clear selection
+                    </Button>
+                )}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    Tick rows to download only those. With nothing ticked, everything matching the filters is downloaded.
+                </Typography.Text>
+            </Space>
+
             {q.isError && (
                 <Alert
                     type="error"
@@ -416,7 +453,25 @@ function CompliancesView() {
                 dataSource={q.data?.items ?? []}
                 loading={q.isFetching}
                 scroll={{ x: 1250 }}
-                onRow={(r) => ({ onClick: () => setOpen(r.id), style: { cursor: 'pointer' } })}
+                rowSelection={{
+                    selectedRowKeys: selected,
+                    preserveSelectedRowKeys: true,
+                    onChange: (keys) => {
+                        if (keys.length > 2000) {
+                            notify.warning('At most 2,000 rows can be ticked. Use the filters to download more.');
+                            return;
+                        }
+                        setSelected(keys as string[]);
+                    },
+                }}
+                onRow={(r) => ({
+                    // A click on the tick box only ticks the row
+                    onClick: (e) => {
+                        if ((e.target as HTMLElement).closest('.ant-table-selection-column')) return;
+                        setOpen(r.id);
+                    },
+                    style: { cursor: 'pointer' },
+                })}
                 pagination={{
                     current: page,
                     pageSize: limit,

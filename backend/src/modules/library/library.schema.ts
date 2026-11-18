@@ -64,6 +64,9 @@ export const complianceListQuerySchema = z.object({
     ...paging,
 });
 
+// The ticked compliances for the Excel download. Without them, everything matching the filters is downloaded.
+export const complianceExportBodySchema = z.object({ ids: z.array(uuid).max(2000).optional() });
+
 export const complianceUpdateSchema = z
     .object({
         title: z.string().trim().min(3).max(500).optional(),
