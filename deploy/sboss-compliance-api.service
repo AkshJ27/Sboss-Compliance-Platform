@@ -1,0 +1,19 @@
+# Keeps the Compliance Platform server running and starts it when the machine starts.
+# Copy to /etc/systemd/system/, then: sudo systemctl daemon-reload && sudo systemctl enable --now sboss-compliance-api
+[Unit]
+Description=SBOSS Compliance Platform API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/sboss-compliance/backend
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=5
+# Settings are read from /opt/sboss-compliance/backend/.env
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

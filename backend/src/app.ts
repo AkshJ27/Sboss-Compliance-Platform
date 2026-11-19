@@ -33,7 +33,8 @@ app.use(cookieParser());
 app.use(
     rateLimit({
         windowMs: 15 * 60 * 1000,
-        limit: 300,
+        // Everyone in an office comes from one internet address, so the limit is per address and set high
+        limit: env.RATE_LIMIT_PER_15_MIN,
         standardHeaders: true,
         legacyHeaders: false,
     }),

@@ -30,6 +30,8 @@ const schema = z
             .transform((v) => v === 'true'),
         DIGEST_HOUR: z.coerce.number().int().min(0).max(23).default(8),
         ALLOW_REGISTRATION: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+        // Requests allowed per internet address in 15 minutes. An office shares one address, so this is set high.
+        RATE_LIMIT_PER_15_MIN: z.coerce.number().int().min(100).default(5000),
     })
     .superRefine((v, ctx) => {
         if (v.STORAGE_DRIVER === 's3') {
