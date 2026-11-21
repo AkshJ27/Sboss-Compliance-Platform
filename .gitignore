@@ -8,3 +8,6 @@ backend/samples/*.pdf
 backend/samples/*.exe
 backend/samples/*.txt
 outbox/
+*.dump
+*.tgz
+*.pem

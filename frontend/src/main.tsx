@@ -7,6 +7,7 @@ import 'antd/dist/reset.css';
 import App from './App';
 import { ApiError } from './core/api/client';
 import { AuthProvider } from './core/auth/AuthContext';
+import { theme } from './theme';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,7 +23,7 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ConfigProvider theme={{ token: { colorPrimary: '#1d4e89' } }}>
+    <ConfigProvider theme={theme}>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>

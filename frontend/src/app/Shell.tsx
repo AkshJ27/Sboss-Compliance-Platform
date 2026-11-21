@@ -32,6 +32,7 @@ import { useMe } from '../core/auth/useMe';
 import { NotificationBell } from '../modules/notifications/NotificationBell';
 import { ModuleBoundary } from './ModuleBoundary';
 import { useMyOverdueTasks } from '../modules/tasks/api';
+import { BRAND } from '../theme';
 
 function selectedKey(path: string) {
     if (path.startsWith('/admin/')) return path.split('/').slice(0, 3).join('/');
@@ -56,6 +57,7 @@ export function Shell() {
     const overdueTasks = myTasks.data?.overdue ?? 0;
     const [modal, modalHolder] = Modal.useModal();
     const [changingPassword, setChangingPassword] = useState(false);
+    const [collapsed, setCollapsed] = useState(false);
 
     const signOutEverywhere = () =>
         modal.confirm({
@@ -128,21 +130,48 @@ export function Shell() {
     return (
         <Layout style={{ minHeight: '100vh' }}>
             {modalHolder}
-            <Layout.Sider collapsible breakpoint="lg" theme="dark">
-                <div style={{ color: '#fff', fontWeight: 600, fontSize: 16, padding: '16px 20px' }}>Compliance</div>
+            <Layout.Sider
+                collapsible
+                collapsed={collapsed}
+                onCollapse={setCollapsed}
+                breakpoint="lg"
+                theme="light"
+                width={220}
+                style={{ boxShadow: `1px 0 0 ${BRAND.line}` }}
+            >
+                {/* The SBOSS logo; the round symbol alone when the menu is folded */}
+                <div
+                    style={{
+                        height: 64,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: collapsed ? 0 : '0 16px',
+                        borderBottom: `1px solid ${BRAND.line}`,
+                        cursor: 'pointer',
+                    }}
+                    onClick={() => navigate('/')}
+                >
+                    {collapsed ? (
+                        <img src="/sboss-mark.png" alt="SBOSS" style={{ width: 36, height: 36 }} />
+                    ) : (
+                        <img src="/sboss-logo.png" alt="SBI Operations Support" style={{ width: '100%', maxWidth: 188, display: 'block' }} />
+                    )}
+                </div>
                 <Menu
-                    theme="dark"
+                    theme="light"
                     mode="inline"
                     selectedKeys={[selectedKey(location.pathname)]}
                     defaultOpenKeys={location.pathname.startsWith('/admin/') ? ['admin'] : []}
                     onClick={({ key }) => navigate(key)}
                     items={items}
+                    style={{ borderInlineEnd: 'none', paddingTop: 8 }}
                 />
             </Layout.Sider>
 
             <Layout>
-                <Layout.Header style={{ display: 'flex', alignItems: 'center', gap: 12, paddingInline: 16 }}>
-                    <Typography.Text style={{ color: '#fff', flex: 1 }}>{me.data?.organization.name ?? ''}</Typography.Text>
+                <Layout.Header style={{ display: 'flex', alignItems: 'center', gap: 12, paddingInline: 20, background: BRAND.gradient }}>
+                    <Typography.Text style={{ color: '#fff', flex: 1, fontSize: 15, fontWeight: 500 }}>{me.data?.organization.name ?? ''}</Typography.Text>
 
                     <ModuleBoundary
                         compact
@@ -179,7 +208,7 @@ export function Shell() {
                     </Dropdown>
                 </Layout.Header>
 
-                <Layout.Content style={{ padding: 16 }}>
+                <Layout.Content style={{ padding: 20 }}>
                     <ModuleBoundary resetKey={location.pathname}>
                         <Suspense
                             fallback={
