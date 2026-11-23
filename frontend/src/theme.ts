@@ -21,6 +21,10 @@ export const theme: ThemeConfig = {
         colorLink: BRAND.primary,
         borderRadius: 8,
         colorBgLayout: BRAND.page,
+        colorPrimaryBg: BRAND.tint,
+        colorPrimaryBgHover: '#EFD5E1',
+        colorInfoBg: '#F7EEF5',
+        colorInfoBorder: '#E5CEDF',
     },
     components: {
         Layout: {
