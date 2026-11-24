@@ -23,6 +23,11 @@ npm run build
 sudo mkdir -p "$WEB_DIR"
 sudo rsync -a --delete dist/ "$WEB_DIR/"
 
+echo "== Web server security settings"
+sudo cp "$APP_DIR/deploy/sboss-security-headers.conf" /etc/nginx/snippets/sboss-security-headers.conf
+sudo cp "$APP_DIR/deploy/nginx-hardening.conf" /etc/nginx/conf.d/sboss-hardening.conf
+sudo nginx -t
+sudo systemctl reload nginx
 echo "== Restarting the server"
 sudo systemctl restart sboss-compliance-api
 sleep 5
