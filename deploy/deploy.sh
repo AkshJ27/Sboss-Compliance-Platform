@@ -25,7 +25,9 @@ sudo rsync -a --delete dist/ "$WEB_DIR/"
 
 echo "== Web server security settings"
 sudo cp "$APP_DIR/deploy/sboss-security-headers.conf" /etc/nginx/snippets/sboss-security-headers.conf
-sudo cp "$APP_DIR/deploy/nginx-hardening.conf" /etc/nginx/conf.d/sboss-hardening.conf
+# Hide the Nginx version: nginx.conf already has a server_tokens line, so set that one to off
+sudo rm -f /etc/nginx/conf.d/sboss-hardening.conf
+sudo sed -i -E 's/^(\s*)server_tokens\s+\S+;/\1server_tokens off;/' /etc/nginx/nginx.conf
 sudo nginx -t
 sudo systemctl reload nginx
 echo "== Restarting the server"
